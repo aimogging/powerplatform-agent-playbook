@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="color-scheme" content="dark">
+<title>Power Platform agent playbook -- quick start</title>
+<style>
+  :root { --bg:#0f1419; --panel:#161c23; --grid:#2c323b; --text:#d7dde5; --muted:#8a94a3; --cyan:#7fb3e6; --olive:#9aa86a; --warn:#d7a34a; }
+  html, body { background: var(--bg); color: var(--text); font: 15px/1.55 "Segoe UI", system-ui, sans-serif; margin: 0; }
+  main { max-width: 980px; margin: 0 auto; padding: 32px 24px 64px; }
+  h1 { font-size: 26px; margin: 0 0 6px; } h2 { font-size: 18px; margin: 32px 0 10px; color: var(--cyan); }
+  p, li { color: var(--text); } .muted { color: var(--muted); }
+  code { font-family: Consolas, "Courier New", monospace; font-size: 13px; background: var(--panel); padding: 1px 5px; border-radius: 3px; }
+  pre { background: var(--panel); border: 1px solid var(--grid); border-radius: 6px; padding: 12px 14px; overflow-x: auto;
+        font: 13px/1.5 Consolas, "Courier New", monospace; }
+  table { border-collapse: collapse; width: 100%; } td, th { border-bottom: 1px solid var(--grid); padding: 6px 8px; text-align: left; vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; } .tag { color: var(--warn); font-weight: 600; }
+</style>
+</head>
+<body>
+<main>
+<h1>Power Platform agent playbook</h1>
+<p class="muted">Build and test canvas apps and cloud flows with an AI agent; hand production nothing but packages a person imports.</p>
+
+<h2>1. Check the tools (no tenant needed)</h2>
+<p>From the repository root:</p>
+<pre>python tools/run-self-tests.py
+python example/build.py --check</pre>
+
+<h2>2. Point it at a dev tenant</h2>
+<pre>cp config/environment.example.json config/environment.json</pre>
+<p>Fill in the tenant id, environment id, site URL and your address. The file is git-ignored; token caches live in <code>~/.pp-playbook/</code>.</p>
+<pre>cd tools
+python -m devtenant login sharepoint
+python -m devtenant whoami
+cd ..</pre>
+
+<h2>3. The loop</h2>
+<table>
+<tr><th>Step</th><th>What</th><th>Tier</th></tr>
+<tr><td>Author</td><td>flow <code>definition.json</code>, canvas <code>Src/*.pa.yaml</code>, list schema JSON</td><td></td></tr>
+<tr><td>Check</td><td><code>flowcheck.py</code>, <code>canvas-lint.py</code></td><td>0 offline</td></tr>
+<tr><td>Dev test</td><td><code>deploy.py</code> (provision, flows, app, publish, runtime gate), drive flows and the app</td><td>1 dev tenant</td></tr>
+<tr><td>Package</td><td><code>build-flow-package.py</code>, <code>msapp-tool.py stamp</code></td><td></td></tr>
+<tr><td>Handoff</td><td>numbered import steps + a test checklist with expected results</td><td></td></tr>
+<tr><td>Production</td><td>a person imports (Update, pick connections, Save as &gt; Replace existing, publish) and reports</td><td>2 target</td></tr>
+</table>
+<p><span class="tag">Rule:</span> always report the tier each artifact reached; never present tier 0 or 1 as production-proven.</p>
+
+<h2>4. Try the example end to end</h2>
+<pre>python example/build.py --base "C:\path\to\downloaded shell.msapp"
+python tools/deploy.py --manifest example/deploy.manifest.json --plan-only</pre>
+<p>The full walkthrough (manual import path and automated dev path) is in <code>example/README.md</code>.</p>
+
+<h2>5. Where the knowledge lives</h2>
+<table>
+<tr><td><code>AGENTS.md</code></td><td>rules, routing, the loop</td></tr>
+<tr><td><code>skills/*/SKILL.md</code></td><td>procedures per task</td></tr>
+<tr><td><code>reference/platform-traps.md</code></td><td>140 traps: symptom, cause, fix, proof</td></tr>
+<tr><td><code>reference/attested-connector-shapes.md</code></td><td>connector shapes that imported and ran</td></tr>
+</table>
+</main>
+<!-- copy-buttons:start (tools/add-copy-buttons.py) -->
+<style>
+  pre.has-copy { position: relative; padding-right: 4.8rem; }
+  pre.has-copy > button.copy-btn {
+    position: absolute; top: .4rem; right: .4rem; margin: 0;
+    font: 600 .72rem/1 Consolas, ui-monospace, monospace; letter-spacing: .08em; text-transform: uppercase;
+    color: var(--cyan, #7fb3e6); background: var(--bg, #0f1419); border: 1px solid var(--grid, #2c323b);
+    border-radius: 3px; padding: .32rem .55rem; cursor: pointer; opacity: .8;
+  }
+  pre.has-copy > button.copy-btn:hover { opacity: 1; border-color: var(--cyan, #7fb3e6); }
+  pre.has-copy > button.copy-btn.done { color: var(--olive, #9AA86A); border-color: var(--olive, #9AA86A); opacity: 1; }
+  @media print { pre.has-copy > button.copy-btn { display: none; } }
+</style>
+<script>
+(function () {
+  function textOf(pre, btn) {
+    var out = '';
+    pre.childNodes.forEach(function (n) { if (n !== btn) { out += n.textContent; } });
+    return out.replace(/\s+$/, '');
+  }
+  function fallbackCopy(text) {
+    var ta = document.createElement('textarea');
+    ta.value = text; ta.setAttribute('readonly', '');
+    ta.style.position = 'fixed'; ta.style.top = '-1000px';
+    document.body.appendChild(ta); ta.select();
+    var ok = false; try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+    document.body.removeChild(ta);
+    return ok;
+  }
+  function flash(btn, label, cls) {
+    btn.textContent = label; if (cls) { btn.classList.add(cls); }
+    setTimeout(function () { btn.textContent = 'Copy'; btn.classList.remove('done'); }, 1600);
+  }
+  document.querySelectorAll('pre').forEach(function (pre) {
+    if (pre.classList.contains('has-copy')) { return; }
+    pre.classList.add('has-copy');
+    var btn = document.createElement('button');
+    btn.type = 'button'; btn.className = 'copy-btn'; btn.textContent = 'Copy';
+    btn.title = 'Copy to clipboard';
+    btn.addEventListener('click', function () {
+      var text = textOf(pre, btn);
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(text).then(function () { flash(btn, 'Copied', 'done'); },
+          function () { flash(btn, fallbackCopy(text) ? 'Copied' : 'Select + Ctrl+C', fallbackCopy(text) ? 'done' : ''); });
+      } else {
+        var ok = fallbackCopy(text);
+        flash(btn, ok ? 'Copied' : 'Select + Ctrl+C', ok ? 'done' : '');
+      }
+    });
+    pre.appendChild(btn);
+  });
+})();
+</script>
+<!-- copy-buttons:end -->
+</body>
+</html>
