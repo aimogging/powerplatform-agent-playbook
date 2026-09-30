@@ -1,0 +1,8 @@
+{
+  "displayName": "HelpDeskNotifyNewTicket",
+  "description": "Contoso Help Desk (playbook example): when a ticket is New, mail the operator and mark it Triaged. Its own write fires the trigger again; the Status = New trigger condition makes that second run a no-op.",
+  "connectors": {
+    "shared_sharepointonline": { "displayName": "SharePoint" },
+    "shared_office365": { "displayName": "Office 365 Outlook" }
+  }
+}

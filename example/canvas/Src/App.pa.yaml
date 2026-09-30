@@ -1,0 +1,20 @@
+# Contoso Help Desk (playbook example) -- App-level formulas.
+# Rules this file follows on purpose (each is a trap in reference/platform-traps.md):
+#   * never UTCNow(): the runtime compiler turns the whole rule into a silent no-op;
+#   * any formula containing ": " (records, With) is a |- block scalar, or Studio refuses to open the app;
+#   * variables are seeded with a TYPED value, never Blank() alone;
+#   * OnStart only seeds state and ends with varOnStartDone (the screen never Select()s from OnVisible).
+App:
+  Properties:
+    OnStart: |-
+      =Set(varTheme, {
+          Bg: RGBA(244, 245, 247, 1),
+          Surface: RGBA(255, 255, 255, 1),
+          Border: RGBA(218, 222, 228, 1),
+          Text: RGBA(28, 34, 43, 1),
+          TextDim: RGBA(91, 101, 115, 1),
+          Accent: RGBA(31, 78, 121, 1)
+      });
+      Set(varBusy, false);
+      Set(varResult, ParseJSON("{}"));
+      Set(varOnStartDone, true)

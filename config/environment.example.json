@@ -29,6 +29,12 @@
   },
   "dataverseUrl": "https://<ORG>.crm.dynamics.com",
 
+  "_connections": "Optional. Headless flow deploys take connection references from live flows that already use the connector; for a connector no flow uses yet, name an existing connection here (the connection id from its maker-portal URL). The API cannot create connections.",
+  "connections": {
+    "shared_sharepointonline": "<SHAREPOINT_CONNECTION_NAME>",
+    "shared_office365": "<OUTLOOK_CONNECTION_NAME>"
+  },
+
   "_tokenCache": "Outside the repo by default. A relative path is resolved from the user's home directory, never from the repo.",
   "tokenCache": ".pp-playbook/token-cache.json",
   "packageKeyCache": ".pp-playbook/package-keys.json",

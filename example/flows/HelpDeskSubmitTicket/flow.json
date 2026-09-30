@@ -1,0 +1,7 @@
+{
+  "displayName": "HelpDeskSubmitTicket",
+  "description": "Contoso Help Desk (playbook example): the app calls Run(payload) with one JSON text input; the flow creates the ticket as the flow's connection and answers result_json.",
+  "connectors": {
+    "shared_sharepointonline": { "displayName": "SharePoint" }
+  }
+}

@@ -19,6 +19,7 @@ TESTS = [
     ['add-copy-buttons.py', '--self-test'],
     ['deploy.py', '--self-test'],
     ['-m', 'devtenant', 'self-test'],
+    [os.path.join('..', 'example', 'build.py'), '--check'],
 ]
 
 

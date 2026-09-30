@@ -1,0 +1,104 @@
+{
+  "properties": {
+    "displayName": "HelpDeskNotifyNewTicket",
+    "connectionReferences": {
+      "shared_sharepointonline": {
+        "connectionName": "shared-sharepointonline-HelpDeskNotifyNewTicket",
+        "source": "Embedded",
+        "id": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+        "tier": "NotSpecified",
+        "apiName": "sharepointonline",
+        "isProcessSimpleApiReferenceConversionAlreadyDone": false
+      },
+      "shared_office365": {
+        "connectionName": "shared-office365-HelpDeskNotifyNewTicket",
+        "source": "Embedded",
+        "id": "/providers/Microsoft.PowerApps/apis/shared_office365",
+        "tier": "NotSpecified",
+        "apiName": "office365",
+        "isProcessSimpleApiReferenceConversionAlreadyDone": false
+      }
+    },
+    "definition": {
+      "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+      "contentVersion": "1.0.0.0",
+      "parameters": {
+        "$authentication": { "defaultValue": {}, "type": "SecureObject" },
+        "$connections": { "defaultValue": {}, "type": "Object" }
+      },
+      "triggers": {
+        "When_a_ticket_is_created_or_modified": {
+          "type": "OpenApiConnection",
+          "recurrence": { "frequency": "Minute", "interval": 1 },
+          "splitOn": "@triggerOutputs()?['body/value']",
+          "conditions": [
+            { "expression": "@equals(triggerBody()?['Status']?['Value'], 'New')" }
+          ],
+          "inputs": {
+            "host": {
+              "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+              "connectionName": "shared_sharepointonline",
+              "operationId": "GetOnUpdatedItems"
+            },
+            "parameters": {
+              "dataset": "__SITE_URL__",
+              "table": "HelpDeskTickets"
+            }
+          },
+          "runtimeConfiguration": { "concurrency": { "runs": 1 } }
+        }
+      },
+      "actions": {
+        "Compose_Subject": {
+          "type": "Compose",
+          "runAfter": {},
+          "inputs": "@concat('[Help desk] ', coalesce(triggerBody()?['Priority']?['Value'], 'Normal'), ' - ', coalesce(triggerBody()?['Title'], '(no subject)'))"
+        },
+        "Compose_Body": {
+          "type": "Compose",
+          "runAfter": { "Compose_Subject": ["Succeeded"] },
+          "inputs": "<p><b>@{coalesce(triggerBody()?['Title'], '(no subject)')}</b></p><p>Category: @{coalesce(triggerBody()?['Category']?['Value'], 'Other')}<br>Requester: @{coalesce(triggerBody()?['RequesterEmail'], 'unknown')}<br>Ticket ID: @{triggerBody()?['ID']}</p><p>@{coalesce(triggerBody()?['Details'], '')}</p>"
+        },
+        "Send_Notification": {
+          "type": "OpenApiConnection",
+          "runAfter": { "Compose_Body": ["Succeeded"] },
+          "inputs": {
+            "host": {
+              "apiId": "/providers/Microsoft.PowerApps/apis/shared_office365",
+              "connectionName": "shared_office365",
+              "operationId": "SendEmailV2"
+            },
+            "parameters": {
+              "emailMessage/To": "__OPERATOR_EMAIL__",
+              "emailMessage/Subject": "@outputs('Compose_Subject')",
+              "emailMessage/Body": "@outputs('Compose_Body')",
+              "emailMessage/Importance": "Normal"
+            },
+            "retryPolicy": { "type": "exponential", "count": 3, "interval": "PT10S", "minimumInterval": "PT5S", "maximumInterval": "PT1M" }
+          }
+        },
+        "Mark_Triaged": {
+          "type": "OpenApiConnection",
+          "runAfter": { "Send_Notification": ["Succeeded"] },
+          "inputs": {
+            "host": {
+              "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+              "connectionName": "shared_sharepointonline",
+              "operationId": "PatchItem"
+            },
+            "parameters": {
+              "dataset": "__SITE_URL__",
+              "table": "HelpDeskTickets",
+              "id": "@triggerBody()?['ID']",
+              "item/Title": "@triggerBody()?['Title']",
+              "item/Status/Value": "Triaged",
+              "item/TriagedAt": "@utcNow()"
+            },
+            "retryPolicy": { "type": "exponential", "count": 3, "interval": "PT10S", "minimumInterval": "PT5S", "maximumInterval": "PT1M" }
+          }
+        }
+      },
+      "outputs": {}
+    }
+  }
+}

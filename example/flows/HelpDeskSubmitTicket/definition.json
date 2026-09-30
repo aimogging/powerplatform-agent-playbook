@@ -1,0 +1,119 @@
+{
+  "properties": {
+    "displayName": "HelpDeskSubmitTicket",
+    "connectionReferences": {
+      "shared_sharepointonline": {
+        "connectionName": "shared-sharepointonline-HelpDeskSubmitTicket",
+        "source": "Embedded",
+        "id": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+        "tier": "NotSpecified",
+        "apiName": "sharepointonline",
+        "isProcessSimpleApiReferenceConversionAlreadyDone": false
+      }
+    },
+    "definition": {
+      "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+      "contentVersion": "1.0.0.0",
+      "parameters": {
+        "$authentication": { "defaultValue": {}, "type": "SecureObject" },
+        "$connections": { "defaultValue": {}, "type": "Object" }
+      },
+      "triggers": {
+        "manual": {
+          "type": "Request",
+          "kind": "PowerApp",
+          "inputs": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "payload": {
+                  "title": "payload",
+                  "type": "string",
+                  "x-ms-content-hint": "TEXT",
+                  "x-ms-dynamically-added": true,
+                  "description": "JSON text: {subject, details, category, priority}"
+                }
+              },
+              "required": ["payload"]
+            }
+          }
+        }
+      },
+      "actions": {
+        "Compose_Payload": {
+          "type": "Compose",
+          "runAfter": {},
+          "inputs": "@json(if(empty(triggerBody()?['payload']), '{}', triggerBody()?['payload']))"
+        },
+        "Compose_Caller": {
+          "type": "Compose",
+          "runAfter": { "Compose_Payload": ["Succeeded"] },
+          "inputs": "@toLower(trim(coalesce(triggerOutputs()?['headers']?['x-ms-user-email'], triggerOutputs()?['headers']?['x-ms-client-principal-name'], '')))"
+        },
+        "Scope_Create": {
+          "type": "Scope",
+          "runAfter": { "Compose_Caller": ["Succeeded"] },
+          "actions": {
+            "Create_Ticket": {
+              "type": "OpenApiConnection",
+              "runAfter": {},
+              "inputs": {
+                "host": {
+                  "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+                  "connectionName": "shared_sharepointonline",
+                  "operationId": "PostItem"
+                },
+                "parameters": {
+                  "dataset": "__SITE_URL__",
+                  "table": "HelpDeskTickets",
+                  "item/Title": "@take(trim(string(coalesce(outputs('Compose_Payload')?['subject'], ''))), 254)",
+                  "item/Details": "@string(coalesce(outputs('Compose_Payload')?['details'], ''))",
+                  "item/Category/Value": "@if(empty(outputs('Compose_Payload')?['category']), 'Other', outputs('Compose_Payload')?['category'])",
+                  "item/Priority/Value": "@if(empty(outputs('Compose_Payload')?['priority']), 'Normal', outputs('Compose_Payload')?['priority'])",
+                  "item/Status/Value": "New",
+                  "item/RequesterEmail": "@outputs('Compose_Caller')"
+                },
+                "retryPolicy": { "type": "exponential", "count": 3, "interval": "PT10S", "minimumInterval": "PT5S", "maximumInterval": "PT1M" }
+              }
+            }
+          }
+        },
+        "Respond_Ok": {
+          "type": "Response",
+          "kind": "PowerApp",
+          "runAfter": { "Scope_Create": ["Succeeded"] },
+          "inputs": {
+            "statusCode": 200,
+            "body": {
+              "result_json": "@concat('{\"status\":\"ok\",\"id\":', string(outputs('Create_Ticket')?['body/ID']), '}')"
+            },
+            "schema": {
+              "type": "object",
+              "properties": {
+                "result_json": { "title": "result_json", "x-ms-dynamically-added": true, "type": "string" }
+              }
+            }
+          }
+        },
+        "Respond_Error": {
+          "type": "Response",
+          "kind": "PowerApp",
+          "runAfter": { "Scope_Create": ["Failed", "TimedOut", "Skipped"] },
+          "inputs": {
+            "statusCode": 200,
+            "body": {
+              "result_json": "{\"status\":\"error\",\"message\":\"The ticket could not be saved. Try again; if it keeps failing, tell the help desk owner.\"}"
+            },
+            "schema": {
+              "type": "object",
+              "properties": {
+                "result_json": { "title": "result_json", "x-ms-dynamically-added": true, "type": "string" }
+              }
+            }
+          }
+        }
+      },
+      "outputs": {}
+    }
+  }
+}

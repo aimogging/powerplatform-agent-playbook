@@ -1,0 +1,220 @@
+# Contoso Help Desk -- the one screen: a new-ticket form on the left, "my tickets" on the right.
+# Data sources this screen expects in the base .msapp (added once in Studio, see example/README.md):
+#   HelpDeskTickets       SharePoint list (read for the gallery)
+#   HelpDeskSubmitTicket  cloud flow, Run(payload) -> {result_json}; writes the ticket as the FLOW's connection
+# SharePoint column names in Power Fx are DISPLAY names ('Requester Email'); the built-in Title column is still
+# Title even though its display name is "Subject".
+Screens:
+  scrHelpDesk:
+    Properties:
+      Fill: =varTheme.Bg
+    Children:
+      - recHeader:
+          Control: Rectangle@2.3.0
+          Properties:
+            Fill: =varTheme.Surface
+            BorderColor: =varTheme.Border
+            X: =0
+            Y: =0
+            Width: =Parent.Width
+            Height: =56
+      - lblTitle:
+          Control: Label@2.5.1
+          Properties:
+            Text: ="Contoso Help Desk"
+            Color: =varTheme.Text
+            Size: =14
+            FontWeight: =FontWeight.Semibold
+            VerticalAlign: =VerticalAlign.Middle
+            X: =24
+            Y: =8
+            Width: =400
+            Height: =40
+      - lblFormCaption:
+          Control: Label@2.5.1
+          Properties:
+            Text: ="New ticket"
+            Color: =varTheme.TextDim
+            Size: =11
+            FontWeight: =FontWeight.Semibold
+            X: =24
+            Y: =80
+            Width: =480
+            Height: =32
+      - lblSubjectCap:
+          Control: Label@2.5.1
+          Properties:
+            Text: ="Subject"
+            Color: =varTheme.TextDim
+            Size: =10
+            X: =24
+            Y: =120
+            Width: =480
+            Height: =24
+      - txtSubject:
+          Control: Classic/TextInput@2.3.2
+          Properties:
+            Default: =""
+            HintText: ="What is wrong, in one line"
+            Size: =11
+            X: =24
+            Y: =148
+            Width: =480
+            Height: =40
+      - lblDetailsCap:
+          Control: Label@2.5.1
+          Properties:
+            Text: ="Details"
+            Color: =varTheme.TextDim
+            Size: =10
+            X: =24
+            Y: =200
+            Width: =480
+            Height: =24
+      - txtDetails:
+          Control: Classic/TextInput@2.3.2
+          Properties:
+            Default: =""
+            Mode: =TextMode.MultiLine
+            Size: =11
+            X: =24
+            Y: =228
+            Width: =480
+            Height: =140
+      - lblCategoryCap:
+          Control: Label@2.5.1
+          Properties:
+            Text: ="Category"
+            Color: =varTheme.TextDim
+            Size: =10
+            X: =24
+            Y: =380
+            Width: =232
+            Height: =24
+      - ddCategory:
+          Control: Classic/DropDown@2.3.1
+          Properties:
+            Items: =["Hardware", "Software", "Access", "Other"]
+            Default: ="Other"
+            Size: =11
+            X: =24
+            Y: =408
+            Width: =232
+            Height: =40
+      - lblPriorityCap:
+          Control: Label@2.5.1
+          Properties:
+            Text: ="Priority"
+            Color: =varTheme.TextDim
+            Size: =10
+            X: =272
+            Y: =380
+            Width: =232
+            Height: =24
+      - ddPriority:
+          Control: Classic/DropDown@2.3.1
+          Properties:
+            Items: =["Low", "Normal", "High"]
+            Default: ="Normal"
+            Size: =11
+            X: =272
+            Y: =408
+            Width: =232
+            Height: =40
+      # The only flow call. IfError: a synchronous Flow.Run that fails or times out must not leave the app stuck
+      # (an action timeout inside the flow does NOT bound how long the app waits).
+      - btnSubmit:
+          Control: Classic/Button@2.2.0
+          Properties:
+            Text: =If(varBusy, "Saving...", "Submit ticket")
+            Tooltip: ="Create the ticket"
+            DisplayMode: =If(varBusy || IsBlank(Trim(txtSubject.Text)), DisplayMode.Disabled, DisplayMode.Edit)
+            Fill: =varTheme.Accent
+            Color: =varTheme.Surface
+            HoverFill: =ColorFade(varTheme.Accent, -15%)
+            Size: =11
+            X: =24
+            Y: =472
+            Width: =200
+            Height: =40
+            OnSelect: |-
+              =Set(varBusy, true);
+              Set(varResult, IfError(
+                  ParseJSON(HelpDeskSubmitTicket.Run(JSON({
+                      subject: Trim(txtSubject.Text),
+                      details: txtDetails.Text,
+                      category: ddCategory.Selected.Value,
+                      priority: ddPriority.Selected.Value
+                  }, JSONFormat.Compact)).result_json),
+                  ParseJSON("{""status"":""error"",""message"":""The help desk flow did not answer. Try again.""}")
+              ));
+              Set(varBusy, false);
+              If(Text(varResult.status) = "ok",
+                  Notify("Ticket " & Text(varResult.id) & " created", NotificationType.Success);
+                  Reset(txtSubject);
+                  Reset(txtDetails);
+                  Refresh(HelpDeskTickets),
+                  Notify(Text(varResult.message), NotificationType.Error)
+              )
+      - lblListCaption:
+          Control: Label@2.5.1
+          Properties:
+            Text: ="My tickets"
+            Color: =varTheme.TextDim
+            Size: =11
+            FontWeight: =FontWeight.Semibold
+            X: =560
+            Y: =80
+            Width: =Parent.Width - 584
+            Height: =32
+      - galTickets:
+          Control: Gallery@2.15.0
+          Variant: Vertical
+          Properties:
+            Items: =SortByColumns(Filter(HelpDeskTickets, 'Requester Email' = Lower(User().Email)), "Created", SortOrder.Descending)
+            TemplateSize: =64
+            TemplatePadding: =0
+            BorderColor: =varTheme.Border
+            BorderThickness: =1
+            Fill: =varTheme.Surface
+            X: =560
+            Y: =120
+            Width: =Parent.Width - 584
+            Height: =Parent.Height - 144
+          Children:
+            - lblRowSubject:
+                Control: Label@2.5.1
+                Properties:
+                  Text: =ThisItem.Title
+                  Tooltip: =ThisItem.Title
+                  Color: =varTheme.Text
+                  Size: =11
+                  FontWeight: =FontWeight.Semibold
+                  Wrap: =false
+                  X: =16
+                  Y: =6
+                  Width: =Parent.TemplateWidth - 32
+                  Height: =28
+            - lblRowMeta:
+                Control: Label@2.5.1
+                Properties:
+                  Text: =ThisItem.Status.Value & "  |  " & ThisItem.Priority.Value & "  |  " & Text(ThisItem.Created, "yyyy-mm-dd hh:mm")
+                  Color: =varTheme.TextDim
+                  Size: =9
+                  Wrap: =false
+                  X: =16
+                  Y: =34
+                  Width: =Parent.TemplateWidth - 32
+                  Height: =22
+      - lblEmpty:
+          Control: Label@2.5.1
+          Properties:
+            Text: ="No tickets yet. Submit one on the left."
+            Visible: =IsEmpty(galTickets.AllItems)
+            Color: =varTheme.TextDim
+            Size: =10
+            Align: =Align.Center
+            X: =560
+            Y: =160
+            Width: =Parent.Width - 584
+            Height: =40

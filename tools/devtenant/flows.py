@@ -129,9 +129,11 @@ class FlowClient(object):
 
     # ---------------------------------------------------------------------------------------- deploy
     @staticmethod
-    def resolve_references(package_refs, existing=None, catalog=None):
-        """Existing flow's reference > catalog harvested from live flows > the package's own (only if real).
-        A placeholder connection name (the api name itself, shared_*) is never used. Returns (refs, missing, sources)."""
+    def resolve_references(package_refs, existing=None, catalog=None, configured=None):
+        """Existing flow's reference > catalog harvested from live flows > config 'connections' map > the package's
+        own (only if real). A placeholder connection name is never used. Returns (refs, missing, sources).
+        (The connections API answers 404 to a Flow-audience token for a plain maker, which is why live flows are
+        harvested; the config map is the fallback for an environment with no flow using that connector yet.)"""
         live = ((existing or {}).get('properties') or {}).get('connectionReferences') or {}
         refs, missing, sources = {}, [], {}
         for api, pref in (package_refs or {}).items():
@@ -139,6 +141,10 @@ class FlowClient(object):
                 refs[api], sources[api] = dict(live[api]), 'existing flow'
             elif catalog and api in catalog:
                 refs[api], sources[api] = dict(catalog[api]['reference']), 'catalog: %s' % catalog[api]['seenIn']
+            elif configured and is_real_connection_name(api, configured.get(api)):
+                ref = dict(pref or {})
+                ref.update({'connectionName': configured[api], 'source': 'Embedded', 'id': '/providers/Microsoft.PowerApps/apis/' + api})
+                refs[api], sources[api] = ref, 'config connections map' 
             elif is_real_connection_name(api, (pref or {}).get('connectionName')):
                 refs[api], sources[api] = dict(pref), 'package'
             else:
@@ -193,9 +199,10 @@ class FlowClient(object):
                              'list-triggered flow (it would double-fire)' % name)
         full = self.get(existing['name']) if existing else None
         catalog = self.connection_catalog(flows) if catalog is None else catalog
-        refs, missing, sources = self.resolve_references(pkg['connectionReferences'], full, catalog)
+        refs, missing, sources = self.resolve_references(pkg['connectionReferences'], full, catalog, self.cfg.get('connections'))
         if missing:
-            raise SystemExit('%s: no connection in this environment for %s -- create one once in the maker portal' % (name, ', '.join(missing)))
+            raise SystemExit('%s: no connection known for %s -- create the connection once in the maker portal and put its name in '
+                             'config connections {api: name}, or import any flow using it by hand once' % (name, ', '.join(missing)))
         definition = copy.deepcopy(pkg['definition'])
         secrets = self.preserve_secrets(definition, ((full or {}).get('properties') or {}).get('definition'))
         plan = {'displayName': name, 'existing': existing['name'] if existing else None,
