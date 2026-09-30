@@ -1,0 +1,49 @@
+{
+  "_comment": "Copy to config/environment.json (git-ignored) and fill in the placeholders for YOUR DEV/TEST tenant. Never commit the filled-in copy. Commercial Microsoft 365 endpoints only.",
+
+  "tenantId": "<TENANT_ID>",
+  "environmentId": "Default-<TENANT_ID>",
+  "siteUrl": "https://<TENANT>.sharepoint.com/sites/<SITE>",
+  "documentLibrary": "Shared Documents",
+  "operatorEmail": "<YOUR_UPN>",
+
+  "hosts": {
+    "login": "https://login.microsoftonline.com",
+    "flow": "https://api.flow.microsoft.com",
+    "powerApps": "https://api.powerapps.com",
+    "bap": "https://api.bap.microsoft.com",
+    "graph": "https://graph.microsoft.com",
+    "player": "https://apps.powerapps.com",
+    "maker": "https://make.powerapps.com",
+    "powerPlatformApiSuffix": "api.powerplatform.com"
+  },
+
+  "_clients": "Public first-party client ids used for device-code sign-in, per audience. See reference/dev-tenant-auth.md for which pairings are proven.",
+  "clients": {
+    "sharepoint": "9bc3ab49-b65d-410a-85ad-de819febfddc",
+    "flow": "9bc3ab49-b65d-410a-85ad-de819febfddc",
+    "graph": "9bc3ab49-b65d-410a-85ad-de819febfddc",
+    "apihub": "9bc3ab49-b65d-410a-85ad-de819febfddc",
+    "powerApps": "51f81489-12ee-4a9e-aaae-a2591f45987d",
+    "dataverse": "51f81489-12ee-4a9e-aaae-a2591f45987d"
+  },
+  "dataverseUrl": "https://<ORG>.crm.dynamics.com",
+
+  "_tokenCache": "Outside the repo by default. A relative path is resolved from the user's home directory, never from the repo.",
+  "tokenCache": ".pp-playbook/token-cache.json",
+  "packageKeyCache": ".pp-playbook/package-keys.json",
+
+  "browser": {
+    "_comment": "Playwright persistent profile for driving published apps. Holds a signed-in session: keep it outside the repo.",
+    "profileDir": ".pp-playbook/pw-profile",
+    "channel": "msedge",
+    "viewport": { "width": 1600, "height": 900 }
+  },
+
+  "llm": {
+    "_comment": "An OpenAI- or Anthropic-compatible gateway, used by the example flows' optional LLM step. Keys never go in this file.",
+    "baseUrl": "https://<LLM_GATEWAY_HOST>",
+    "model": "<MODEL_ID>",
+    "apiKeyEnvVar": "LLM_API_KEY"
+  }
+}

@@ -1,0 +1,34 @@
+# --- secrets and token caches: NEVER tracked -------------------------------------------------
+# A path move once silently defeated an ignore rule and live refresh tokens were committed.
+# These patterns are deliberately broad and path-independent (they match at any depth).
+.secrets/
+**/*.token.json
+**/*token-cache*.json
+**/*.local.json
+**/credentials*.json
+**/*.key
+config/environment.json
+config/environment.*.json
+!config/environment.example.json
+
+# --- browser automation profiles (hold signed-in sessions) -----------------------------------
+.pw-profile/
+**/pw-profile*/
+
+# --- build and run outputs --------------------------------------------------------------------
+example/dist/
+out/
+**/runtime-capture/
+**/census-out/
+
+# --- binary app packages: build them, never commit them -----------------------------------------
+*.msapp
+*.msapr
+*.zip
+
+# --- python / editor noise -------------------------------------------------------------------------
+__pycache__/
+*.pyc
+.venv/
+.DS_Store
+Thumbs.db
