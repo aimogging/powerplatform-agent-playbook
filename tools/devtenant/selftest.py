@@ -236,7 +236,7 @@ def test_canvasdoc():
           'canvasdoc: flow data source without an owner gets a Studio-shaped entry')
     mapping = canvasdoc.name_mapping({'Title': {'title': 'Title'}, 'Name': {'title': 'Title'}, '{Name}': {'title': 'Name'}, 'Status': {'title': 'Status'}})
     check(mapping == {'Title': 'Title', 'Name': 'Title (Name)', '{Name}': 'Name ({Name})', 'Status': 'Status'}, 'canvasdoc: Studio display-name collision rule')
-    check(canvasdoc.cdp_time('2026-01-02T03:04:05.6789Z') == '2026-01-02T03:04:05.6780000Z', 'canvasdoc: CdpRevision time form')
+    check(canvasdoc.cdp_time('2001-01-02T03:04:05.6789Z') == '2001-01-02T03:04:05.6780000Z', 'canvasdoc: CdpRevision time form')
     with tempfile.TemporaryDirectory() as d:
         p = os.path.join(d, 'a.msapp')
         _msapp(p, refs, [{'Name': 'SubmitTicket', 'ServiceKind': 'ConnectedWadl', 'ApiId': '/providers/microsoft.powerapps/apis/shared_logicflows',
@@ -260,7 +260,7 @@ def test_canvasdoc():
             refused = True
         check(refused, 'canvasdoc: WADL-inexpressible flow with a stale embedded signature is refused')
         meta = json.dumps({'schema': {'items': {'properties': {'Title': {'title': 'Subject'}, 'Status': {'title': 'Status'}}}}})
-        canvasdoc.refresh_table_schemas(doc, {'L1': meta}, '2026-01-02T03:04:05.000Z')
+        canvasdoc.refresh_table_schemas(doc, {'L1': meta}, '2001-01-02T03:04:05.000Z')
         tds = doc.json('References/DataSources.json')['DataSources'][1]
         check(tds['DataEntityMetadataJson'] == {'L1': meta} and tds['ConnectedDataSourceInfoNameMapping'] == {'Title': 'Subject', 'Status': 'Status'},
               'canvasdoc: table schema stored verbatim + name mapping')

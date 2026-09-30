@@ -170,6 +170,8 @@ class Live(object):
         self.fc, self.pa, self.sp = FlowClient(self.cfg, a, h), PowerAppsClient(self.cfg, a, h), SharePoint(self.cfg, a, h)
         self.http = h
         self.app_ids = {}
+        self.app_refs = {}
+        self.published = {}
 
     def plan(self, step):
         out = []
@@ -226,11 +228,18 @@ class Live(object):
                 for line in r.get('lines', []):
                     print(line)
                 self.app_ids[a['displayName']] = r['appId']
+                self.app_refs[a['displayName']] = r.get('references') or {}
+                self.published[a['displayName']] = r['published']
                 print('RESULT app %s -> %s (%s)' % (a['displayName'], r['appId'], 'created + published' if r['created'] else 'draft written'))
         elif step['kind'] == 'publish':
+            from devtenant.powerapps import publish_and_verify
             for a in step['items']:
+                if self.published.get(a['displayName']):
+                    print('RESULT %s already published by its first (create) deploy' % a['displayName'])
+                    continue
                 aid = self.app_ids.get(a['displayName']) or self.pa.find(a['displayName'], None, a.get('name', ''), a.get('owner', ''))['name']
-                self.pa.publish(aid)
+                for line in publish_and_verify(self.pa, aid, self.app_refs.get(a['displayName']) or {}):
+                    print(line)
                 print('RESULT published %s' % a['displayName'])
         elif step['kind'] == 'gate':
             bad = 0

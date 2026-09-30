@@ -429,19 +429,29 @@ def deploy_app(pa, fc, msapp_path, display_name, apply=False, publish=True, name
     if not apply:
         return {'displayName': display_name, 'target': target and target['name'], 'dryRun': True, 'plan': res['plan'], 'lines': lines}
     app_id = res['appId']
-    wrote = pa.write_draft_references(app_id, references, display_name) if references else False
-    if wrote:
-        pa.assert_references(references, pa.get(app_id, draft=True)['properties']['unpublishedAppDefinition'])
-    elif not publish:
-        raise SystemExit('%s: the import produced no separate draft to write references into' % display_name)
+    if references:
+        if pa.write_draft_references(app_id, references, display_name):
+            pa.assert_references(references, pa.get(app_id, draft=True)['properties']['unpublishedAppDefinition'])
+        elif not publish:
+            raise SystemExit('%s: the import produced no separate draft to write references into (a CREATE is published == '
+                             'draft: deploy it with publish)' % display_name)
     if publish:
-        pa.publish(app_id)
+        lines += publish_and_verify(pa, app_id, references)
+    else:
+        lines.append('NOTE draft only: publish it before anyone opens it in Studio')
+    return {'displayName': display_name, 'appId': app_id, 'created': target is None, 'published': publish,
+            'references': references, 'lines': lines}
+
+
+def publish_and_verify(pa, app_id, references):
+    """Publish (promotes the draft's references), verify the live definition, PATCH only as a repair."""
+    lines = []
+    pa.publish(app_id)
+    if references:
         try:
             pa.assert_references(references, pa.get(app_id))
         except SystemExit as ex:
             lines.append('WARN publish did not carry the references (%s); repairing with the metadata PATCH' % ex)
             pa.patch_references(app_id, references)
             pa.assert_references(references, pa.get(app_id))
-    else:
-        lines.append('NOTE draft only: publish it before anyone opens it in Studio')
-    return {'displayName': display_name, 'appId': app_id, 'created': target is None, 'published': publish, 'lines': lines}
+    return lines
