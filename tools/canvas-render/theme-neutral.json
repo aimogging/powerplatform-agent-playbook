@@ -1,0 +1,19 @@
+{
+  "_comment": "Neutral default palette for render-screen.py. Used when the app defines no theme record in App.OnStart, or passed explicitly with --theme-file to preview mocks in a design language before the app exists. Keys are the tokens formulas read as varTheme.<Token> (and varTheme.Hex.<Token>). Replace with your own design tokens; keep the same keys your formulas use.",
+  "tokens": {
+    "Bg": "#f4f5f7",
+    "Surface": "#ffffff",
+    "SurfaceAlt": "#eef0f3",
+    "Border": "#dadee4",
+    "BorderStrong": "#b8bfc9",
+    "Text": "#1c222b",
+    "TextDim": "#5b6573",
+    "TextFaint": "#8a929e",
+    "Accent": "#1f4e79",
+    "AccentSoft": "#e7eef6",
+    "AccentText": "#ffffff",
+    "Ok": "#1e6b45",
+    "Warning": "#8a5a00",
+    "Danger": "#a4262c"
+  }
+}

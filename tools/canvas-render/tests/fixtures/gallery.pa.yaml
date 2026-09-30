@@ -1,0 +1,64 @@
+Screens:
+  scrGallery:
+    Properties: {}
+    Children:
+      - galRows:
+          Control: Gallery@2.15.0
+          Variant: Vertical
+          Properties:
+            X: =0
+            Y: =0
+            Width: =200
+            Height: =500
+            TemplateSize: =50
+            TemplatePadding: =10
+          Children:
+            - lblRowText:
+                Control: Label@2.5.1
+                Properties:
+                  X: =4
+                  Y: =4
+                  Width: =190
+                  Height: =20
+                  Size: =11
+                  Text: =ThisItem.label
+      - galBanded:
+          Control: Gallery@2.15.0
+          Variant: Vertical
+          Properties:
+            X: =0
+            Y: =520
+            Width: =200
+            Height: =200
+            TemplateSize: =50
+            TemplatePadding: =0
+          Children:
+            - lblBandHeader:
+                Control: Label@2.5.1
+                Properties:
+                  Height: =20
+                  Size: =11
+                  Text: =ThisItem.bandLabel
+                  Visible: =ThisItem.rowType="band"
+                  Width: =190
+                  X: =4
+                  Y: =4
+            - lblTaskRow:
+                Control: Label@2.5.1
+                Properties:
+                  Height: =20
+                  Size: =11
+                  Text: =Left(ThisItem.requirement,6)
+                  Visible: =ThisItem.rowType="task"
+                  Width: =190
+                  X: =4
+                  Y: =24
+            - lblAlways:
+                Control: Label@2.5.1
+                Properties:
+                  Height: =12
+                  Size: =8
+                  Text: ="always"
+                  Width: =190
+                  X: =4
+                  Y: =40

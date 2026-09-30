@@ -1,0 +1,46 @@
+# Seeded input controls: a Modern text input and a Modern dropdown that are
+# authored with a Default value, plus one of each with no Default. Studio shows
+# the seeded value; only an unseeded control shows its placeholder / the
+# "Select an item" empty state.
+Screens:
+  scrSeededInputs:
+    Properties: {}
+    Children:
+      - txtSeeded:
+          Control: ModernTextInput@1.1.1
+          Properties:
+            Default: ="Publication emails"
+            Height: =32
+            Placeholder: ="Filter name"
+            Size: =10
+            Width: =240
+            X: =0
+            Y: =0
+      - txtUnseeded:
+          Control: ModernTextInput@1.1.1
+          Properties:
+            Height: =32
+            Placeholder: ="Filter name"
+            Size: =10
+            Width: =240
+            X: =0
+            Y: =40
+      - ddSeeded:
+          Control: ModernDropdown@1.0.2
+          Properties:
+            Default: ="anyOf"
+            Height: =32
+            Items: =["equals","contains","anyOf"]
+            Size: =10
+            Width: =136
+            X: =0
+            Y: =80
+      - ddUnseeded:
+          Control: ModernDropdown@1.0.2
+          Properties:
+            Height: =32
+            Items: =["equals","contains","anyOf"]
+            Size: =10
+            Width: =136
+            X: =0
+            Y: =120

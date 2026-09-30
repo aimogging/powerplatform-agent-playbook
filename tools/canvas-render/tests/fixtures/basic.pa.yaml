@@ -1,0 +1,83 @@
+Screens:
+  scrBasic:
+    Properties:
+      Fill: =ColorValue("#f6f5f2")
+    Children:
+      - conBox:
+          Control: GroupContainer@1.5.0
+          Variant: ManualLayout
+          Properties:
+            Fill: =varTheme.Bg
+            BorderColor: =ColorValue("#333333")
+            BorderThickness: =2
+            Height: =200
+            Width: =300
+            X: =50
+            Y: =60
+          Children:
+            - lblHello:
+                Control: Label@2.5.1
+                Properties:
+                  Color: =varTheme.Accent
+                  Size: =13
+                  FontWeight: =FontWeight.Semibold
+                  Align: =Align.Center
+                  Height: =28
+                  Width: =Parent.Width-20
+                  Text: ="Hello World"
+                  X: =10
+                  Y: =10
+            - recTick:
+                Control: Rectangle@2.3.0
+                Properties:
+                  Fill: =RGBA(255,0,0,1)
+                  Height: =4
+                  Width: =100
+                  X: =10
+                  Y: =50
+      - btnPrimary:
+          Control: ModernButton@1.0.0
+          Properties:
+            Height: =32
+            Text: ="Primary"
+            Width: =120
+            X: =50
+            Y: =300
+      - btnOverlay:
+          Control: ModernButton@1.0.0
+          Properties:
+            Appearance: =ButtonAppearance.Transparent
+            Height: =32
+            Text: =""
+            Width: =120
+            X: =180
+            Y: =300
+      - btnOutline:
+          Control: ModernButton@1.0.0
+          Properties:
+            Appearance: =ButtonAppearance.Outline
+            BasePaletteColor: =ColorValue("#4750e0")
+            Height: =32
+            Text: ="Outline"
+            Width: =120
+            X: =310
+            Y: =300
+      - btnOutlineExplicitFill:
+          Control: ModernButton@1.0.0
+          Properties:
+            Appearance: =ButtonAppearance.Outline
+            Fill: =ColorValue("#eceefc")
+            Height: =32
+            Text: ="Explicit"
+            Width: =120
+            X: =440
+            Y: =300
+      - btnPaletteFilled:
+          Control: ModernButton@1.0.0
+          Properties:
+            BasePaletteColor: =ColorValue("#1f7a43")
+            Height: =32
+            Text: ="Accept"
+            Width: =120
+            X: =50
+            Y: =350

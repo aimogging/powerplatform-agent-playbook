@@ -1,0 +1,25 @@
+{
+  "galRows": [
+    {
+      "label": "Row A"
+    },
+    {
+      "label": "Row B"
+    },
+    {
+      "label": "Row C"
+    }
+  ],
+  "galBanded": [
+    {
+      "rowType": "band",
+      "bandLabel": "OVERDUE",
+      "requirement": ""
+    },
+    {
+      "rowType": "task",
+      "bandLabel": "",
+      "requirement": "abcdefghij"
+    }
+  ]
+}

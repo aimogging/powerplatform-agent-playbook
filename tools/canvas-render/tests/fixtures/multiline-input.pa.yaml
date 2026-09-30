@@ -1,0 +1,26 @@
+Screens:
+  scrMultiline:
+    Children:
+      - txtMultiline:
+          Control: Classic/TextInput@2.3.2
+          Properties:
+            X: =16
+            Y: =16
+            Width: =320
+            Height: =160
+            Mode: =TextMode.MultiLine
+            Size: =11
+            PaddingTop: =8
+            PaddingRight: =12
+            PaddingBottom: =8
+            PaddingLeft: =12
+            Default: =varMultilineFixture
+      - txtSingleLine:
+          Control: Classic/TextInput@2.3.2
+          Properties:
+            X: =16
+            Y: =192
+            Width: =320
+            Height: =36
+            Mode: =TextMode.SingleLine
+            Default: ="Single line"

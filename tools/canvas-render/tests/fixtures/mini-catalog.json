@@ -1,0 +1,10 @@
+{
+  "Label@2.5.1": {
+    "Height": {"value": 40, "source": "theme"},
+    "Align": {"value": "Left", "source": "documented"},
+    "FontWeight": {"value": "Normal", "source": "documented"},
+    "VerticalAlign": {"value": "Top", "source": "theme"},
+    "Wrap": {"value": true, "source": "theme"},
+    "Color": {"value": "#474540", "source": "theme"}
+  }
+}

@@ -1,0 +1,89 @@
+# Exercises the layer panel: every top-level child paints regardless of Visible, but
+# gets wrapped in a data-layer div whose initial display reflects the resolved Visible
+# value (OnStart var seeding from tests/fixtures/App.pa.yaml, or a --set override).
+Screens:
+  scrLayers:
+    Properties: {}
+    Children:
+      - conMatrix:
+          Control: GroupContainer@1.5.0
+          Variant: ManualLayout
+          Properties:
+            X: =0
+            Y: =0
+            Width: =200
+            Height: =100
+      - scrimHidden:
+          Control: ModernButton@1.0.0
+          Properties:
+            X: =0
+            Y: =0
+            Width: =200
+            Height: =100
+            Visible: =varShowX
+            Text: =""
+      - conConfirmScrim:
+          Control: GroupContainer@1.5.0
+          Variant: ManualLayout
+          Properties:
+            X: =0
+            Y: =120
+            Width: =200
+            Height: =50
+            Visible: =Len(varWsAction)>0
+      - conUnknownVis:
+          Control: GroupContainer@1.5.0
+          Variant: ManualLayout
+          Properties:
+            X: =0
+            Y: =180
+            Width: =200
+            Height: =50
+            Visible: =varSomeUnknownFlag
+      - scrimWsAlert:
+          Control: ModernButton@1.0.0
+          Properties:
+            X: =0
+            Y: =240
+            Width: =200
+            Height: =50
+            Visible: =varShowX
+            Text: =""
+      - conWsAlert:
+          Control: GroupContainer@1.5.0
+          Variant: ManualLayout
+          Properties:
+            X: =0
+            Y: =240
+            Width: =200
+            Height: =50
+            Visible: =varShowX
+      - conVisibleSwap:
+          Control: GroupContainer@1.5.0
+          Variant: ManualLayout
+          Properties:
+            Height: =60
+            Width: =200
+            X: =0
+            Y: =600
+          Children:
+            - lblSwapOn:
+                Control: Label@2.5.1
+                Properties:
+                  Height: =20
+                  Size: =11
+                  Text: ="on"
+                  Visible: =!varShowX
+                  Width: =190
+                  X: =4
+                  Y: =4
+            - lblSwapOff:
+                Control: Label@2.5.1
+                Properties:
+                  Height: =20
+                  Size: =11
+                  Text: ="off"
+                  Visible: =varShowX
+                  Width: =190
+                  X: =4
+                  Y: =28

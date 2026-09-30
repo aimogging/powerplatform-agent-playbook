@@ -1,0 +1,13 @@
+# Minimal App.pa.yaml shared by every fixture screen in this directory -- gives
+# render-screen.py a real varTheme record to resolve against (same shape as the
+# real apps: Set(varThemeX, {...}); Set(varDark, bool); Set(varTheme, ...)).
+App:
+  Properties:
+    OnStart: |-
+      =Set(varThemeLight,{Bg:ColorValue("#ffffff"),Accent:ColorValue("#4750e0"),Text:ColorValue("#20211f")});
+      Set(varThemeDark,{Bg:ColorValue("#14161a"),Accent:ColorValue("#7b82ff"),Text:ColorValue("#e9ebf0")});
+      Set(varDark,false);
+      Set(varTheme,varThemeLight);
+      Set(varWsAction,"");
+      Set(varShowX,false)
+    Theme: =PowerAppsTheme

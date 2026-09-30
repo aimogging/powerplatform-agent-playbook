@@ -1,0 +1,25 @@
+# Exercises the resolution ladder (explicit yaml -> defaults-catalog -> flagged
+# fallback) against tests/fixtures/mini-catalog.json, which deliberately only knows
+# Label@2.5.1's Height. lblA omits only Height (should resolve silently from the
+# mini-catalog, NOT flagged). lblB omits Height AND Width (Height still resolves
+# silently from the same catalog entry; Width has no catalog entry at all, so it
+# must fall through to the hardcoded conservative fallback and BE flagged).
+Screens:
+  scrDefaults:
+    Properties: {}
+    Children:
+      - lblA:
+          Control: Label@2.5.1
+          Properties:
+            X: =0
+            Y: =0
+            Width: =100
+            Size: =13
+            Text: ="A"
+      - lblB:
+          Control: Label@2.5.1
+          Properties:
+            X: =0
+            Y: =50
+            Size: =13
+            Text: ="B"

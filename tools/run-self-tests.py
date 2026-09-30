@@ -18,6 +18,7 @@ TESTS = [
     ['parse-appcheck.py', '--self-test'],
     ['add-copy-buttons.py', '--self-test'],
     ['deploy.py', '--self-test'],
+    [os.path.join('canvas-render', 'render-screen.py'), '--self-test'],
     ['-m', 'devtenant', 'self-test'],
     [os.path.join('..', 'example', 'build.py'), '--check'],
 ]
