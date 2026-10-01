@@ -4,6 +4,8 @@ Dev/test-tenant commands for the agent. Reads config/environment.json. Anything 
 without it the command prints its plan. Nothing here is meant for the production tenant.
 
   login <sharepoint|flow|graph|apihub|powerApps|dataverse>   device-code sign-in (once); later calls refresh silently
+  login <key> --refresh-token-from <file.json>              seed from another cache's refresh_token (same client)
+  doctor                                                     READ-ONLY first-run check: tools, config, sign-in, permissions
   whoami                                                     audience / user / expiry of each cached token (no secrets)
   sp-provision <schema.json> [--apply]                      idempotent lists + fields (audit, then apply)
   sp-seed <list> <rows.json> --tag TAG [--apply]            fixture rows, Title prefixed with TAG
@@ -15,6 +17,7 @@ without it the command prints its plan. Nothing here is meant for the production
   flow-twin-delete <flow>                                   remove the Http twin
   approvals                                                 approvals waiting for the signed-in user
   approve <approvalName> <response> [--comments TEXT]       answer one without a click
+  flow-import <package.zip> [--apply]                        the 'Import Package (Legacy)' backend (Update by name, else New)
   app-deploy <app.msapp> --name "Display Name" [--apply] [--no-publish] [--allow-create] [--pin APP_ID]
   app-download <app> <out.msapp> [--draft]                  'Download a copy' (carries Studio's App checker result)
   app-launch-check <app>                                    runtime package status + NULL-rule scan (launch route)
@@ -52,6 +55,9 @@ def main(argv=None):
     if not argv or argv[0] in ('-h', '--help'):
         print(__doc__)
         return 0
+    if argv[0] == 'doctor':
+        from . import doctor
+        return doctor.run()
     if argv[0] == 'self-test':
         from . import selftest
         return selftest.run()
@@ -70,11 +76,20 @@ def main(argv=None):
     ap.add_argument('--draft', action='store_true')
     ap.add_argument('--comments', default='')
     ap.add_argument('--header', action='append', default=[])
+    ap.add_argument('--refresh-token-from', default='')
     a = ap.parse_args(argv)
     cfg, http, auth = _ctx()
     c, args = a.cmd, a.args
 
     if c == 'login':
+        if a.refresh_token_from:
+            rt = json.load(open(a.refresh_token_from, encoding='utf-8')).get('refresh_token')
+            if not rt:
+                raise SystemExit('no refresh_token in %s' % a.refresh_token_from)
+            tok = auth.seed(args[0], rt)
+            cl = authmod.claims(tok)
+            print('seeded %s: aud=%s upn=%s' % (args[0], cl.get('aud'), cl.get('upn') or cl.get('unique_name')))
+            return 0
         auth.device_code(args[0])
         print('signed in for %s; token cache: %s' % (args[0], cfg.token_cache))
         return 0
@@ -175,6 +190,14 @@ def main(argv=None):
         if hit is None:
             raise SystemExit('no app %r' % ref)
         return hit['name']
+    if c == 'flow-import':
+        import zipfile as _z
+        with _z.ZipFile(args[0]) as z:
+            name = json.loads(z.read('manifest.json').decode('utf-8-sig'))['details']['displayName']
+        live = fc.find('=' + name)
+        r = pa.import_legacy_package(args[0], a.apply, c_names := (cfg.get('connections') or {}), {name: live['name']} if live else {})
+        print(json.dumps(r, indent=1))
+        return 0
     if c == 'app-deploy':
         if not a.name:
             raise SystemExit('--name "Display Name" is required')

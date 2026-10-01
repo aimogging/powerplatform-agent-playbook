@@ -189,7 +189,8 @@ class FlowClient(object):
                 report.append((n, v.get('name'), outcome, length))
         return report
 
-    def deploy(self, source_path, display_name=None, apply=False, start=True, flows=None, catalog=None, must_exist=False):
+    def deploy(self, source_path, display_name=None, apply=False, start=True, flows=None, catalog=None, must_exist=False,
+               connections=None):
         pkg = read_flow_source(source_path)
         name = display_name or pkg['displayName']
         flows = self.list() if flows is None else flows
@@ -199,7 +200,9 @@ class FlowClient(object):
                              'list-triggered flow (it would double-fire)' % name)
         full = self.get(existing['name']) if existing else None
         catalog = self.connection_catalog(flows) if catalog is None else catalog
-        refs, missing, sources = self.resolve_references(pkg['connectionReferences'], full, catalog, self.cfg.get('connections'))
+        configured = dict(connections or {})
+        configured.update(self.cfg.get('connections') or {})
+        refs, missing, sources = self.resolve_references(pkg['connectionReferences'], full, catalog, configured)
         if missing:
             raise SystemExit('%s: no connection known for %s -- create the connection once in the maker portal and put its name in '
                              'config connections {api: name}, or import any flow using it by hand once' % (name, ', '.join(missing)))

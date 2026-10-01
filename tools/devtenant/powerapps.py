@@ -120,6 +120,19 @@ class PowerAppsClient(object):
             fh.write(r.body)
         return out_path
 
+    def connections(self):
+        """api -> [connection names] the signed-in user can use in this environment. Works with the Power Apps token
+        (the Flow-audience token gets 404 on every connections route for a plain maker)."""
+        out, url = {}, "%s/connections?api-version=%s&$filter=environment eq '%s'" % (self.base, API, self.env)
+        while url:
+            page = self.api('GET', url) or {}
+            for c in page.get('value') or []:
+                p = c.get('properties') or {}
+                if any(st.get('status') == 'Connected' for st in p.get('statuses') or []):
+                    out.setdefault((p.get('apiId') or '').split('/')[-1], []).append(c['name'])
+            url = page.get('nextLink')
+        return out
+
     # ---------------------------------------------------------------------------------- BAP plumbing
     def _bap(self, method, path, body=None, allow_write_retry=False):
         r = self.http.request(method, '%s/%s?api-version=%s' % (self.bap, path, API), headers=self._h(), body=body,
@@ -131,13 +144,18 @@ class PowerAppsClient(object):
     def _wait(self, r, timeout=900):
         if r.status != 202 or not r.headers.get('location'):
             return r.json()
-        deadline = time.time() + timeout
+        deadline, started, last = time.time() + timeout, time.time(), None
         while time.time() < deadline:
             self.sleep(5)
             p = self.http.request('GET', r.headers['location'], headers=self._h())
-            if p.status == 200 and re.search(r'"status"\s*:\s*"(Succeeded|Failed)"', p.text):
+            m = re.search(r'"status"\s*:\s*"([A-Za-z]+)"', p.text)
+            state = '%s/%s' % (p.status, m.group(1) if m else '-')
+            if state != last:
+                self.log('BAP poll %s after %ds' % (state, time.time() - started))
+                last = state
+            if p.status == 200 and m and m.group(1) in ('Succeeded', 'Failed'):
                 return p.json()
-        raise SystemExit('BAP operation did not finish within %ds' % timeout)
+        raise SystemExit('BAP operation did not finish within %ds (last poll %s)' % (timeout, last))
 
     @staticmethod
     def _status(op):
@@ -215,7 +233,9 @@ class PowerAppsClient(object):
             'properties': {'appVersion': now, 'lifeCycleId': 'Published', 'displayName': display_name, 'description': description,
                            'commitMessage': '', 'appUris': {'documentUri': {'value': '/%s/%s' % (folder, doc)}, 'imageUris': [],
                                                              'additionalUris': [{'isSolutionAware': False, 'value': '/%s/%s' % (folder, ident)}]},
-                           'connectionReferences': {}, 'databaseReferences': {}, 'almMode': 'Environment'},
+                           'connectionReferences': {}, 'databaseReferences': {}, 'almMode': 'Environment',
+                           # without these a CREATE stores 0.0.0.0 and the runtime package never leaves InProgress (C-10)
+                           'createdByClientVersion': dict(FALLBACK_VERSION), 'minClientVersion': dict(FALLBACK_VERSION)},
             'isAppComponentLibrary': False, 'appType': 'ClassicCanvasApp', 'appComponents': []}}
         base = 'Microsoft.PowerApps/apps/%s/' % folder
         with zipfile.ZipFile(out_zip, 'w', zipfile.ZIP_DEFLATED) as z:
@@ -264,6 +284,58 @@ class PowerAppsClient(object):
                 new_id = res['id'].split('/apps/')[-1]
         return {'dryRun': False, 'appId': new_id, 'plan': plan}
 
+    def import_legacy_package(self, zip_path, apply=False, connection_names=None, flow_ids=None):
+        """A legacy FLOW package (tools/build-flow-package.py) through the same BAP import the 'Import Package (Legacy)'
+        dialog uses: flow = Update when flow_ids names it, else New; api = Existing; connection = Existing, bound to
+        connection_names[api] (or the first Connected one). Returns the plan / final resources."""
+        conns = connection_names or {}
+        avail = None
+        sas = (self._bap('POST', 'generateResourceStorage', {}).json() or {}).get('sharedAccessSignature')
+        container, query = sas.split('?', 1)
+        blob = container.rstrip('/') + '/package.zip?' + query
+        with open(zip_path, 'rb') as fh:
+            put = self.http.request('PUT', blob, headers={'x-ms-blob-type': 'BlockBlob', 'Content-Type': 'application/octet-stream'},
+                                    raw_body=fh.read(), allow_write_retry=True)
+        if put.status >= 400:
+            raise HttpError('PUT', 'package upload', put.status, put.text)
+        params = self._wait(self._bap('POST', 'listImportParameters', {'packageLink': {'value': blob}}))
+        if self._status(params) != 'Succeeded':
+            raise SystemExit('listImportParameters failed: %s' % json.dumps(params)[:600])
+        resources = params['properties']['resources']
+        plan = {}
+        for k, res in resources.items():
+            t = res.get('type')
+            if t == 'Microsoft.Flow/flows':
+                fid = (flow_ids or {}).get(res['details']['displayName'])
+                res['selectedCreationType'] = 'Update' if fid else 'New'
+                if fid:
+                    res['id'] = '/providers/Microsoft.Flow/flows/' + fid
+            elif t == 'Microsoft.PowerApps/apis':
+                res['selectedCreationType'] = 'Existing'
+            elif t == 'Microsoft.PowerApps/apis/connections':
+                api = next((resources[d].get('name') for d in res.get('dependsOn') or [] if resources.get(d, {}).get('type') == 'Microsoft.PowerApps/apis'), '')
+                name = conns.get(api)
+                if not name:
+                    avail = self.connections() if avail is None else avail
+                    name = (avail.get(api) or [None])[0]
+                if not name:
+                    raise SystemExit('no Connected connection for %s -- create one once in the maker portal' % api)
+                res['selectedCreationType'] = 'Existing'
+                res['id'] = '/providers/Microsoft.PowerApps/apis/%s/connections/%s' % (api, name)
+            else:
+                res['selectedCreationType'] = res.get('suggestedCreationType')
+            plan[k] = (t, res['selectedCreationType'], res.get('id', ''))
+        if not apply:
+            return {'dryRun': True, 'plan': plan}
+        staged = params['properties'].get('packageLink') or {'value': blob}
+        op = self._wait(self._bap('POST', 'importPackage', {'packageLink': staged, 'details': params['properties'].get('details'),
+                                                            'resources': resources}, allow_write_retry=True))
+        if self._status(op) != 'Succeeded':
+            raise SystemExit('importPackage finished %s: %s' % (self._status(op), json.dumps(op)[:1500]))
+        final = {k: (r.get('type'), r.get('selectedCreationType'), r.get('id'), r.get('status'))
+                 for k, r in ((op.get('properties') or {}).get('resources') or {}).items()}
+        return {'dryRun': False, 'plan': plan, 'resources': final}
+
     # ---------------------------------------------------------------------------------- draft refs, publish, verify
     def write_draft_references(self, app_id, references, display_name=''):
         """Leased full-definition PUT onto the DRAFT (what Studio's save does). Returns False when there is no separate draft."""
@@ -306,6 +378,10 @@ class PowerAppsClient(object):
             except HttpError as ex:
                 self.log('WARN releaseLease failed (%s); the lease expires on its own' % ex)
         return True
+
+    def delete_app(self, app_id):
+        """Dev-tenant cleanup of an app the TEST created (never an app someone else made)."""
+        self.api('DELETE', '%s/apps/%s?api-version=%s' % (self.base, app_id, API))
 
     def publish(self, app_id):
         self.api('POST', '%s/apps/%s/publish?api-version=%s' % (self.base, app_id, API_DEF), {}, allow_write_retry=True)
@@ -358,7 +434,19 @@ class PowerAppsClient(object):
             det = (r or {}).get('listAppPackageOperationDetails') or {}
             if det.get('packageStatus') != 'InProgress' or time.time() > deadline:
                 return r
-            self.sleep(max(5, int(det.get('retryAfter') or 10)))
+            self.sleep(max(5, retry_seconds(det.get('retryAfter'))))
+
+
+def retry_seconds(value, default=10):
+    """retryAfter arrives as an ISO-8601 duration ('PT10S', live-observed) or as plain seconds."""
+    m = re.match(r'^P(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+(?:\.\d+)?)S)?)?$', str(value or '').strip())
+    if m and any(m.groups()):
+        h, mi, sec = m.groups()
+        return int(int(h or 0) * 3600 + int(mi or 0) * 60 + float(sec or 0))
+    try:
+        return int(float(value))
+    except (TypeError, ValueError):
+        return default
 
 
 def deploy_app(pa, fc, msapp_path, display_name, apply=False, publish=True, name='', owner='', allow_create=False,

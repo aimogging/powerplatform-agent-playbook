@@ -473,3 +473,96 @@ def refresh_flow_signatures(msapp, live_by_flow):
         raise SystemExit('no live signature for flow data source(s) %s -- refusing to leave a stale Run() signature' % missing)
     msapp.put_json('References/DataSources.json', doc)
     return lines
+
+
+# ------------------------------------------------------------------------------------------------ headless app shell (dev tenant)
+def new_shell(template_msapp, app_name, out_path, extra_template_msapps=(), width=1366, height=768):
+    """A blank app document for DEV-TENANT testing, built without Studio from a Studio-saved document that supplies the
+    Microsoft control templates (References/Templates.json) and document scaffolding. Everything app-specific is
+    removed: Src, data sources, connection references, App rules, screen controls. `extra_template_msapps` contribute
+    control templates the first one lacks (a control whose template is absent from the package does not load -- C-19)."""
+    src = Msapp(template_msapp)
+    keep = ('Header.json', 'Properties.json', 'References/Templates.json', 'References/Themes.json',
+            'References/ModernThemes.json', 'References/QualifiedValues.json', 'Controls/1.json')
+    doc = Msapp.__new__(Msapp)
+    doc.path, doc.infos, doc.data = out_path, [], {}
+    for n in keep:
+        if n in src.data:
+            doc.data[n] = src.data[n]
+    templates = json.loads(doc.data['References/Templates.json'].decode('utf-8-sig'))
+    have = {t.get('Name') for t in templates.get('UsedTemplates', [])}
+    for extra in extra_template_msapps:
+        for t in (Msapp(extra).json('References/Templates.json') or {}).get('UsedTemplates', []):
+            if t.get('Name') not in have:
+                templates['UsedTemplates'].append(t)
+                have.add(t.get('Name'))
+    doc.put_json('References/Templates.json', templates)
+    app = doc.json('Controls/1.json')
+    top = app['TopParent']
+    top['Children'] = []
+    top['Rules'] = [r for r in top.get('Rules', []) if r.get('Property') in ('Theme', 'SizeBreakpoints', 'MinScreenHeight', 'MinScreenWidth')]
+    doc.put_json('Controls/1.json', app)
+    props = doc.json('Properties.json')
+    props.update({'Name': __import__('base64').b64encode((app_name + '.msapp').encode()).decode(), 'Id': str(uuid.uuid4()),
+                  'FileID': str(uuid.uuid4()), 'Author': '', 'AppDescription': '', 'LocalConnectionReferences': '{}',
+                  'DocumentLayoutWidth': width, 'DocumentLayoutHeight': height})
+    doc.put_json('Properties.json', props)
+    doc.put_json('References/DataSources.json', {'DataSources': []})
+    doc.put_json('References/Resources.json', {'Resources': []})
+    doc.put_json('Resources/PublishInfo.json', {'AppName': app_name, 'BackgroundColor': 'RGBA(0,176,240,1)', 'PublishTarget': 'player',
+                                                'LogoFileName': '', 'IconColor': 'RGBA(255,255,255,1)', 'IconName': 'Edit',
+                                                'PublishResourcesLocally': False, 'PublishDataLocally': False, 'UserLocale': 'en-US'})
+    return doc
+
+
+def add_sharepoint_source(doc, name, site_url, list_id, connection_name, connector_meta):
+    """A SharePoint list data source in Studio's shape (schema filled later by refresh_table_schemas)."""
+    ds = doc.json('References/DataSources.json')
+    ds['DataSources'].append({'Name': name, 'IsSampleData': False, 'IsWritable': True, 'Type': 'ConnectedDataSourceInfo',
+                              'DatasetName': site_url, 'TableName': list_id,
+                              'ApiId': '/providers/microsoft.powerapps/apis/shared_sharepointonline', 'EncodeDataset': True,
+                              'CdpRevision': {'RevisionNumber': 1, 'BaseUrl': '/', 'LastChangedTimeString': ''},
+                              'DataEntityMetadataJson': {}, 'ConnectedDataSourceInfoNameMapping': {}})
+    doc.put_json('References/DataSources.json', ds)
+    refs = doc.refs()
+    key = next((k for k, e in refs.items() if e.get('connectionInstanceId', '').endswith('/connections/' + connection_name)), None)
+    if key is None:
+        key = str(uuid.uuid4())
+        refs[key] = {'id': key, 'connectionInstanceId': '/providers/microsoft.powerapps/apis/shared_sharepointonline/connections/' + connection_name,
+                     'dataSources': [], 'datasets': {}, 'dependencies': {}, 'dependents': [],
+                     'connectionRef': {'id': '/providers/microsoft.powerapps/apis/shared_sharepointonline',
+                                       'displayName': connector_meta['displayName'], 'apiTier': connector_meta.get('tier') or 'Standard',
+                                       'iconUri': connector_meta['iconUri'], 'parameterHints': {}, 'parameterHintsV2': {}}}
+    e = refs[key]
+    e['dataSources'].append(name)
+    e['datasets'].setdefault(site_url, {'dataSources': {}})['dataSources'][name] = {'tableName': list_id}
+    doc.set_refs(refs)
+
+
+def add_flow_source(doc, name, flow_id, wadl):
+    """A cloud-flow data source (Studio's '+ Add flow'): the WADL from listWadl, serviceId pinned to `name`.
+    The owning connection reference is added by add_flow_references (runtime_references does it)."""
+    ds = doc.json('References/DataSources.json')
+    ds['DataSources'].append({'Type': 'ServiceInfo', 'Name': name, 'ServiceKind': 'ConnectedWadl',
+                              'WadlMetadata': {'WadlXml': re.sub(r'siena:serviceId="[^"]*"', 'siena:serviceId="%s"' % name, wadl)},
+                              'ApiId': '/providers/microsoft.powerapps/apis/shared_logicflows', 'FlowNameId': flow_id,
+                              'WorkflowEntityId': None})
+    doc.put_json('References/DataSources.json', ds)
+
+
+def put_src(doc, src_dir):
+    """Stamp Src/*.pa.yaml and the LoadFromYaml marker (the shell then behaves like a Studio download + stamp)."""
+    import os
+    import datetime
+    screens = []
+    for f in sorted(os.listdir(src_dir)):
+        if f.endswith('.pa.yaml'):
+            doc.data['Src/' + f] = open(os.path.join(src_dir, f), 'rb').read()
+            screens += re.findall(r'(?m)^  ([A-Za-z_]\w*):\s*$', doc.data['Src/' + f].decode('utf-8')) if f != 'App.pa.yaml' else []
+    if 'Src/_EditorState.pa.yaml' not in doc.data and screens:
+        order = ''.join('    - %s\n' % n for n in screens)
+        doc.data['Src/_EditorState.pa.yaml'] = ('EditorState:\n  ScreensOrder:\n' + order).encode()
+    doc.data['packed.json'] = json.dumps({'PackedStructureVersion': '0.1',
+                                          'LastPackedDateTimeUtc': datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d %H:%M:%SZ'),
+                                          'PackingClient': {'Name': 'Pac CLI', 'Version': '2.8.1'},
+                                          'LoadConfiguration': {'LoadFromYaml': True}}).encode()

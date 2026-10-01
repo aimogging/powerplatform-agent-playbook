@@ -61,6 +61,12 @@ def test_http():
             return Response(next(seq2), {}, '')
     h3 = Http(Seq2(), sleep=lambda s: None, log=lambda *a: None)
     check(h3.request('POST', 'https://example.com/y', body={}).status == 500, 'http: a write is NOT retried after a 500 (may have applied)')
+    import gzip as _gz
+    check(Response(200, {}, _gz.compress(b'{"app": ["a.js"]}')).json() == {'app': ['a.js']},
+          'http: a gzip body without Content-Encoding is decoded (runtime package blobs, D-23)')
+    from .powerapps import retry_seconds
+    check(retry_seconds('PT10S') == 10 and retry_seconds('PT1M5S') == 65 and retry_seconds('7') == 7 and retry_seconds(None) == 10,
+          'powerapps: launch retryAfter accepts ISO-8601 durations and seconds (D-23)')
 
 
 def test_auth():
@@ -280,6 +286,11 @@ def test_powerapps():
         with zipfile.ZipFile(z) as zz:
             m = json.loads(zz.read('manifest.json'))
             names = zz.namelist()
+            appj = json.loads(zz.read([n for n in names if n.endswith('.json') and n != 'manifest.json'
+                                       and 'identity' not in n][0]))
+        ver = (((appj.get('appDefinitionTemplate') or {}).get('properties') or {}).get('createdByClientVersion') or {})
+        check(ver.get('major', 0) > 0 and ver.get('revision', -1) >= 0,
+              'powerapps: the package template carries a four-part client version (a create stored 0.0.0.0 -> stuck, D-22)')
         check(list(m['resources']) == ['key-1'] and any(n.startswith('Microsoft.PowerApps/apps/12345/N') and n.endswith('-document.msapp') for n in names),
               'powerapps: package uses the minted key/folder pair and carries the document verbatim')
         try:

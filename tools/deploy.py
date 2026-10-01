@@ -6,7 +6,7 @@ cloud flows, canvas apps, publish, and the runtime gate. Stops at the first fail
     python tools/deploy.py --manifest ... --plan-only                           # read-only
     python tools/deploy.py --manifest ... --resume-from S1-APPS                 # after a stop (plan runs again)
     python tools/deploy.py --manifest ... --stop-after S1-FLOWS --skip P1
-    python tools/deploy.py --manifest ... --flows '=HelpDeskSubmitTicket' --apps none
+    python tools/deploy.py --manifest ... --flows '=ContosoHelpDeskSubmitTicket' --apps none
     python tools/deploy.py --manifest ... --yes                                 # answer the confirmation (unattended)
     python tools/deploy.py --self-test                                          # offline: step table, rules, mutations
 

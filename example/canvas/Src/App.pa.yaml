@@ -16,5 +16,5 @@ App:
           Accent: RGBA(31, 78, 121, 1)
       });
       Set(varBusy, false);
-      Set(varResult, ParseJSON("{}"));
+      Set(varResultJson, "");
       Set(varOnStartDone, true)

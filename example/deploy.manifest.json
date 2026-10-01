@@ -1,11 +1,11 @@
 {
-  "_comment": "DEV-TENANT deployment of the example with tools/deploy.py. Build first (python example/build.py --base <download>) so example/dist/src holds the flows with YOUR site URL substituted. After the first successful deploy set mustExist:true on HelpDeskNotifyNewTicket: it is list-triggered, and a name miss must never create a second, double-firing copy.",
+  "_comment": "DEV-TENANT deployment of the example with tools/deploy.py. Build first (python example/build.py --base <download>) so example/dist/src holds the flows with YOUR site URL substituted. After the first successful deploy set mustExist:true on ContosoHelpDeskNotifyNewTicket: it is list-triggered, and a name miss must never create a second, double-firing copy.",
   "provision": [
     { "id": "P1", "schema": "example/sharepoint/helpdesk.schema.json" }
   ],
   "flows": [
-    { "displayName": "HelpDeskSubmitTicket", "source": "example/dist/src/HelpDeskSubmitTicket", "start": true },
-    { "displayName": "HelpDeskNotifyNewTicket", "source": "example/dist/src/HelpDeskNotifyNewTicket", "start": true, "mustExist": false }
+    { "displayName": "ContosoHelpDeskSubmitTicket", "source": "example/dist/src/ContosoHelpDeskSubmitTicket", "start": true },
+    { "displayName": "ContosoHelpDeskNotifyNewTicket", "source": "example/dist/src/ContosoHelpDeskNotifyNewTicket", "start": true, "mustExist": false }
   ],
   "apps": [
     {
@@ -13,13 +13,13 @@
       "msapp": "example/dist/Contoso Help Desk.msapp",
       "src": "example/canvas/Src",
       "allowCreate": true,
-      "requiredFlows": ["HelpDeskSubmitTicket"],
+      "requiredFlows": ["ContosoHelpDeskSubmitTicket"],
       "refreshTableSchemas": true,
       "refreshFlowSignatures": true
     }
   ],
   "stages": [
-    { "id": "S1", "flows": ["HelpDeskSubmitTicket", "HelpDeskNotifyNewTicket"], "apps": ["Contoso Help Desk"] }
+    { "id": "S1", "flows": ["ContosoHelpDeskSubmitTicket", "ContosoHelpDeskNotifyNewTicket"], "apps": ["Contoso Help Desk"] }
   ],
   "gates": { "runtimeRules": true }
 }

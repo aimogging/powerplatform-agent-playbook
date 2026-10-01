@@ -28,6 +28,7 @@ ERRORS (exit 1)                                       what happens if you ship i
 WARNINGS (exit 0 unless --strict)
   coalesce-empty       Coalesce(x, "") = ""           always false (Coalesce turns "" into Blank()); use IsBlank(x)
   set-blank-only       Set(v, Blank()) and never a typed value   "No type found for variable"
+  set-untyped          Set(v, ParseJSON(...))         measured compiling to NULL rules in a service-compiled YAML app
   untyped-empty-table  If(..., [], <table>)           [] has no schema; ThisItem.* stops resolving. Use Filter(T, false)
   json-whole-record    JSON(ThisItem) / JSON(x.Selected)  throws "contains media" on SharePoint records
   timer-tooltip-semi   ';' inside a Timer Tooltip string  observed with a runtime package that never finished
@@ -242,6 +243,11 @@ def lint_text(text, path, issues, controls_seen, all_ents):
             if re.search(r'\bUTCNow\s*\(', code, re.I):
                 add('error', 'utcnow', n, '%s.%s calls UTCNow() -- the runtime compiler emits a NULL rule (silently dead). '
                     'Use Now() / TimeZoneOffset(Now())' % (e.name, pname))
+            m_untyped = re.search(r'\bSet\s*\(\s*(\w+)\s*,\s*(?:IfError\s*\(\s*)?ParseJSON\s*\(', code, re.I)
+            if m_untyped:
+                add('warning', 'set-untyped', n, '%s.%s stores ParseJSON(...) in %s -- measured compiling to NULL rules in a '
+                    'service-compiled YAML app (C-46). Keep the JSON text in the variable and ParseJSON where it is used'
+                    % (e.name, pname, m_untyped.group(1)))
             if re.search(r"Font\.'(Consolas|Inter)'", val):
                 add('error', 'font-enum', n, "%s.%s: that font is not in the canvas Font enum -- use Font.'Courier New' "
                     "for monospace" % (e.name, pname))
@@ -445,6 +451,7 @@ def self_test():
     expect(lambda t: t.replace('Control: Classic/Button@2.2.0', 'Control: ModernButton@1.0.0').replace(
         '            Text: ="Go"\n', '            Text: ="Go"\n            HoverFill: =Color.Red\n'), 'unknown-property')
     expect(R('            Height: =40', '            Height: =12'), 'text-clipping', 'warning')
+    expect(R('      Set(varCount, 0);', '      Set(varResult, ParseJSON("{}"));\n      Set(varCount, 0);'), 'set-untyped', 'warning')
     expect(R('      Set(varCount, 0);', '      Set(varDead, Blank());\n      Set(varCount, 0);'), 'set-blank-only', 'warning')
     expect(R('Items: =Search(colItems, txtFind.Text, Title)', 'Items: =If(IsBlank(txtFind.Text), [], colItems)'), 'untyped-empty-table', 'warning')
     expect(R('      Fill: =varTheme.Bg', '      Fill: =varTheme.Bg\n      OnVisible: =Select(btnGo)'), 'onvisible-select', 'warning')

@@ -1,7 +1,8 @@
 # Contoso Help Desk -- the one screen: a new-ticket form on the left, "my tickets" on the right.
+# Dropdowns are ModernDropdown: Selected is a record ({Value: ...}); Default must be a record too (trap C-32).
 # Data sources this screen expects in the base .msapp (added once in Studio, see example/README.md):
-#   HelpDeskTickets       SharePoint list (read for the gallery)
-#   HelpDeskSubmitTicket  cloud flow, Run(payload) -> {result_json}; writes the ticket as the FLOW's connection
+#   ContosoHelpDeskTickets       SharePoint list (read for the gallery)
+#   ContosoHelpDeskSubmitTicket  cloud flow, Run(payload) -> {result_json}; writes the ticket as the FLOW's connection
 # SharePoint column names in Power Fx are DISPLAY names ('Requester Email'); the built-in Title column is still
 # Title even though its display name is "Subject".
 Screens:
@@ -92,11 +93,15 @@ Screens:
             Width: =232
             Height: =24
       - ddCategory:
-          Control: Classic/DropDown@2.3.1
+          Control: ModernDropdown@1.0.2
           Properties:
             Items: =["Hardware", "Software", "Access", "Other"]
-            Default: ="Other"
-            Size: =11
+            ItemDisplayText: =ThisItem.Value
+            Default: |-
+              ={Value: "Other"}
+            BorderColor: =varTheme.Border
+            BorderThickness: =1
+            Size: =14
             X: =24
             Y: =408
             Width: =232
@@ -112,17 +117,19 @@ Screens:
             Width: =232
             Height: =24
       - ddPriority:
-          Control: Classic/DropDown@2.3.1
+          Control: ModernDropdown@1.0.2
           Properties:
             Items: =["Low", "Normal", "High"]
-            Default: ="Normal"
-            Size: =11
+            ItemDisplayText: =ThisItem.Value
+            Default: |-
+              ={Value: "Normal"}
+            BorderColor: =varTheme.Border
+            BorderThickness: =1
+            Size: =14
             X: =272
             Y: =408
             Width: =232
             Height: =40
-      # The only flow call. IfError: a synchronous Flow.Run that fails or times out must not leave the app stuck
-      # (an action timeout inside the flow does NOT bound how long the app waits).
       - btnSubmit:
           Control: Classic/Button@2.2.0
           Properties:
@@ -139,22 +146,24 @@ Screens:
             Height: =40
             OnSelect: |-
               =Set(varBusy, true);
-              Set(varResult, IfError(
-                  ParseJSON(HelpDeskSubmitTicket.Run(JSON({
+              Set(varResultJson, IfError(
+                  ContosoHelpDeskSubmitTicket.Run(JSON({
                       subject: Trim(txtSubject.Text),
                       details: txtDetails.Text,
                       category: ddCategory.Selected.Value,
                       priority: ddPriority.Selected.Value
-                  }, JSONFormat.Compact)).result_json),
-                  ParseJSON("{""status"":""error"",""message"":""The help desk flow did not answer. Try again.""}")
+                  }, JSONFormat.Compact)).result_json,
+                  "{""status"":""error"",""message"":""The help desk flow did not answer. Try again.""}"
               ));
               Set(varBusy, false);
-              If(Text(varResult.status) = "ok",
-                  Notify("Ticket " & Text(varResult.id) & " created", NotificationType.Success);
-                  Reset(txtSubject);
-                  Reset(txtDetails);
-                  Refresh(HelpDeskTickets),
-                  Notify(Text(varResult.message), NotificationType.Error)
+              With({r: ParseJSON(varResultJson)},
+                  If(Text(r.status) = "ok",
+                      Notify("Ticket " & Text(r.id) & " created", NotificationType.Success);
+                      Reset(txtSubject);
+                      Reset(txtDetails);
+                      Refresh(ContosoHelpDeskTickets),
+                      Notify(Text(r.message), NotificationType.Error)
+                  )
               )
       - lblListCaption:
           Control: Label@2.5.1
@@ -171,7 +180,7 @@ Screens:
           Control: Gallery@2.15.0
           Variant: Vertical
           Properties:
-            Items: =SortByColumns(Filter(HelpDeskTickets, 'Requester Email' = Lower(User().Email)), "Created", SortOrder.Descending)
+            Items: =SortByColumns(Filter(ContosoHelpDeskTickets, 'Requester Email' = Lower(User().Email)), "Created", SortOrder.Descending)
             TemplateSize: =64
             TemplatePadding: =0
             BorderColor: =varTheme.Border

@@ -1,9 +1,9 @@
 {
   "properties": {
-    "displayName": "HelpDeskNotifyNewTicket",
+    "displayName": "ContosoHelpDeskNotifyNewTicket",
     "connectionReferences": {
       "shared_sharepointonline": {
-        "connectionName": "shared-sharepointonline-HelpDeskNotifyNewTicket",
+        "connectionName": "shared-sharepointonline-ContosoHelpDeskNotifyNewTicket",
         "source": "Embedded",
         "id": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
         "tier": "NotSpecified",
@@ -11,7 +11,7 @@
         "isProcessSimpleApiReferenceConversionAlreadyDone": false
       },
       "shared_office365": {
-        "connectionName": "shared-office365-HelpDeskNotifyNewTicket",
+        "connectionName": "shared-office365-ContosoHelpDeskNotifyNewTicket",
         "source": "Embedded",
         "id": "/providers/Microsoft.PowerApps/apis/shared_office365",
         "tier": "NotSpecified",
@@ -42,7 +42,7 @@
             },
             "parameters": {
               "dataset": "__SITE_URL__",
-              "table": "HelpDeskTickets"
+              "table": "ContosoHelpDeskTickets"
             }
           },
           "runtimeConfiguration": { "concurrency": { "runs": 1 } }
@@ -88,7 +88,7 @@
             },
             "parameters": {
               "dataset": "__SITE_URL__",
-              "table": "HelpDeskTickets",
+              "table": "ContosoHelpDeskTickets",
               "id": "@triggerBody()?['ID']",
               "item/Title": "@triggerBody()?['Title']",
               "item/Status/Value": "Triaged",

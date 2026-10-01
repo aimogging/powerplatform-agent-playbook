@@ -1,8 +1,8 @@
 {
-  "_comment": "One schema drives both provisioning routes: the agent's dev-tenant tool (python -m devtenant sp-provision) and the HelpDeskProvisionList flow that example/build.py generates for a manual import. Internal names never contain spaces; display names may (Power Fx then uses the display name in single quotes, e.g. 'Requester Email'). The built-in Title column is renamed 'Subject' for display but Power Fx still calls it Title.",
+  "_comment": "One schema drives both provisioning routes: the agent's dev-tenant tool (python -m devtenant sp-provision) and the ContosoHelpDeskProvisionList flow that example/build.py generates for a manual import. Internal names never contain spaces; display names may (Power Fx then uses the display name in single quotes, e.g. 'Requester Email'). The built-in Title column is renamed 'Subject' for display but Power Fx still calls it Title.",
   "lists": [
     {
-      "title": "HelpDeskTickets",
+      "title": "ContosoHelpDeskTickets",
       "description": "Contoso Help Desk tickets (playbook example)",
       "titleDisplayName": "Subject",
       "fields": [

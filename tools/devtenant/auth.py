@@ -1,17 +1,17 @@
 """Dev-tenant sign-in for the agent: device code once, then silent refresh-token grants per audience.
 
-PROVEN (a commercial validation tenant):
+PROVEN (a commercial validation tenant; reference/dev-tenant-auth.md has the table):
   * The SharePoint Online Management Shell public client (9bc3ab49-...) is in the FOCI "family of client ids":
-    ONE refresh token from one device-code sign-in redeems for SharePoint (<site origin>/.default -> full _api,
-    Sites.FullControl.All for that user), the Flow API (service.flow.microsoft.com), Graph and apihub.azure.com.
-  * Refresh tokens ROTATE: every grant returns a new one and the old one dies. Always persist the new token
-    (a stale copy in a second cache file fails later with AuthenticationFailed).
-  * The same client is NOT preauthorized for the Power Apps service or Dataverse (AADSTS65002 "must be configured
-    via preauthorization"); those audiences need their own client and their own sign-in.
-  * Dataverse: the Power Platform CLI public client (51f81489-...) with device code works.
-UNVERIFIED here: the Power Apps audience (service.powerapps.com) via device code with the pac client -- pac's own
-BAP calls use that audience, but the proven headless app deploy used a different first-party client through the
-Windows broker. If the grant fails, mint the token another way and pass it in PP_TOKEN_POWERAPPS.
+    ONE refresh token redeems for SharePoint (<site origin>/.default -> full _api, Sites.FullControl.All for that
+    user), the Flow API (service.flow.microsoft.com) and Graph. It is refused (AADSTS65002) for apihub, the Power
+    Apps service and Dataverse.
+  * The Power Platform CLI public client (51f81489-...) gets the Power Apps service and Dataverse. Its apihub token
+    is refused by the connector runtime (403 "missing connection ACL", user_impersonation only).
+  * The Power Automate Desktop public client (386ce8c0-...) gets apihub with Runtime.All -- what the connector
+    runtime needs.
+  * Refresh tokens ROTATE: always persist the newest one and keep ONE cache.
+  * `seed()` (CLI: login <key> --refresh-token-from <file>) starts a cache from an existing refresh token of the
+    same client; the live proof used it. The device-code prompt itself was not re-run there.
 
 Token caches NEVER live in the repo: default ~/.pp-playbook/token-cache.json. (A path move once silently defeated
 an ignore rule and live refresh tokens were committed for two weeks.)
@@ -111,6 +111,15 @@ class Auth(object):
             if tok.get('error') not in ('authorization_pending', 'slow_down'):
                 raise SystemExit('device-code sign-in failed: %s %s' % (tok.get('error'), tok.get('error_description', '')[:300]))
         raise SystemExit('device-code sign-in timed out')
+
+    def seed(self, key, refresh_token):
+        """Seed the cache with an existing refresh token of the SAME client (e.g. from another tool's cache) and redeem
+        it for `key` -- for sessions where nobody can complete a device-code sign-in. The token is never printed."""
+        client = self.cfg.clients[key]
+        self.cache.data['refresh'][client] = refresh_token
+        self.cache.data['access'].pop(key, None)
+        self.cache.save()
+        return self.token(key, interactive=False)
 
     def _store(self, key, client, tok):
         if tok.get('refresh_token'):

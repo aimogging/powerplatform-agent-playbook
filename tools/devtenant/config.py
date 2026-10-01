@@ -6,6 +6,7 @@ import re
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 DEFAULT_PATH = os.path.join(REPO, 'config', 'environment.json')
 EXAMPLE_PATH = os.path.join(REPO, 'config', 'environment.example.json')
+HOME_PATH = os.path.join(os.path.expanduser('~'), '.pp-playbook', 'environment.json')
 
 DEFAULT_HOSTS = {
     'login': 'https://login.microsoftonline.com',
@@ -19,8 +20,9 @@ DEFAULT_HOSTS = {
 }
 FOCI_SPO_SHELL = '9bc3ab49-b65d-410a-85ad-de819febfddc'
 PAC_CLIENT = '51f81489-12ee-4a9e-aaae-a2591f45987d'
+PAD_CLIENT = '386ce8c0-7421-48c9-a1df-2a532400339f'   # the only one proven to get apihub Runtime.All
 DEFAULT_CLIENTS = {
-    'sharepoint': FOCI_SPO_SHELL, 'flow': FOCI_SPO_SHELL, 'graph': FOCI_SPO_SHELL, 'apihub': FOCI_SPO_SHELL,
+    'sharepoint': FOCI_SPO_SHELL, 'flow': FOCI_SPO_SHELL, 'graph': FOCI_SPO_SHELL, 'apihub': PAD_CLIENT,
     'powerApps': PAC_CLIENT, 'dataverse': PAC_CLIENT,
 }
 
@@ -67,8 +69,10 @@ class Config(dict):
 
 def load(path=None):
     path = path or os.environ.get('PP_PLAYBOOK_CONFIG') or DEFAULT_PATH
+    if path == DEFAULT_PATH and not os.path.isfile(path) and os.path.isfile(HOME_PATH):
+        path = HOME_PATH          # plugin installs: the plugin folder is replaced on update, the home copy survives
     if not os.path.isfile(path):
-        raise SystemExit('no %s -- copy config/environment.example.json to config/environment.json and fill it in' % path)
+        raise SystemExit('no %s -- copy config/environment.example.json to config/environment.json (or ~/.pp-playbook/environment.json) and fill it in' % path)
     with open(path, encoding='utf-8-sig') as fh:
         return Config(json.load(fh))
 

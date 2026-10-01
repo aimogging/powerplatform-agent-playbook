@@ -1,9 +1,9 @@
 {
   "properties": {
-    "displayName": "HelpDeskSubmitTicket",
+    "displayName": "ContosoHelpDeskSubmitTicket",
     "connectionReferences": {
       "shared_sharepointonline": {
-        "connectionName": "shared-sharepointonline-HelpDeskSubmitTicket",
+        "connectionName": "shared-sharepointonline-ContosoHelpDeskSubmitTicket",
         "source": "Embedded",
         "id": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
         "tier": "NotSpecified",
@@ -65,7 +65,7 @@
                 },
                 "parameters": {
                   "dataset": "__SITE_URL__",
-                  "table": "HelpDeskTickets",
+                  "table": "ContosoHelpDeskTickets",
                   "item/Title": "@take(trim(string(coalesce(outputs('Compose_Payload')?['subject'], ''))), 254)",
                   "item/Details": "@string(coalesce(outputs('Compose_Payload')?['details'], ''))",
                   "item/Category/Value": "@if(empty(outputs('Compose_Payload')?['category']), 'Other', outputs('Compose_Payload')?['category'])",

@@ -176,6 +176,37 @@ class SharePoint(object):
                           {'__metadata': {'type': 'SP.Field'}, 'Title': name}, merge=True)
         return row
 
+    def recycle_bin(self, title):
+        """Recycle-bin entries (both stages) whose Title equals `title` -> [(scope, id)]."""
+        hits = []
+        for scope in ('web', 'site'):
+            r = self.get("%s/RecycleBin?$select=Id,Title,ItemType&$filter=Title eq '%s'" % (scope, q(title)))
+            hits.extend((scope, x['Id']) for x in ((r or {}).get('value') or []))
+        return hits
+
+    def delete_list(self, title, purge=True):
+        """Delete a list the TEST created, then purge it from both recycle-bin stages. Returns what was removed."""
+        row = self.find_list(title)
+        done = []
+        if row:
+            self.post("web/lists(guid'%s')/recycle()" % row['Id'], verbose=False)
+            done.append('list recycled')
+        if purge:
+            # deleting from the first-stage bin MOVES the entry to the second stage, and the site-level query lists
+            # the first stage too -- so re-query after every pass (live-measured: a stale second delete answers 400)
+            for _ in range(4):
+                hits = self.recycle_bin(title)
+                if not hits:
+                    break
+                for scope, rid in hits:
+                    try:
+                        self.post("%s/RecycleBin('%s')/deleteObject()" % (scope, rid), verbose=False)
+                        done.append('purged from the %s recycle bin' % scope)
+                    except HttpError as ex:
+                        if ex.status not in (400, 404):
+                            raise
+        return done
+
     # ----------------------------------------------------------------------------- items (fixtures)
     def items(self, title, select='*', filt=None, top=500):
         path = "web/lists/GetByTitle('%s')/items?$select=%s&$top=%d" % (q(title), select, top)

@@ -8,10 +8,12 @@ Retry contract (ported from the proven deploy clients):
     idempotent by nature (package import upsert-by-name, publish, read-only POSTs such as listWadl);
   * 400/401/403/404/409/412/422 are never retried here.
 """
+import gzip
 import json
 import random
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 
 RETRY_STATUS = {408, 429, 500, 502, 503, 504}
@@ -29,6 +31,12 @@ class Response(object):
         self.status = status
         self.headers = {k.lower(): v for k, v in (headers or {}).items()}
         self.body = body if isinstance(body, bytes) else (body or '').encode('utf-8')
+        # runtime-package blobs are served gzip-encoded even without Accept-Encoding (live-observed); magic-byte check
+        if self.body[:2] == bytes((0x1f, 0x8b)):
+            try:
+                self.body = gzip.decompress(self.body)
+            except (OSError, EOFError):
+                pass
 
     @property
     def text(self):
@@ -39,9 +47,14 @@ class Response(object):
         return json.loads(t) if t.strip() else None
 
 
+def safe_url(url):
+    """Percent-encode characters urllib refuses (spaces in OData $filter etc.) without touching existing escapes."""
+    return urllib.parse.quote(url, safe=":/?#[]@!$&'()*+,;=%~")
+
+
 class UrllibTransport(object):
     def send(self, method, url, headers, data, timeout):
-        req = urllib.request.Request(url, data=data, method=method, headers=headers or {})
+        req = urllib.request.Request(safe_url(url), data=data, method=method, headers=headers or {})
         try:
             with urllib.request.urlopen(req, timeout=timeout) as r:
                 return Response(r.status, dict(r.headers), r.read())
