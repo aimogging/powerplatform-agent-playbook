@@ -13,7 +13,7 @@ Package layout (VERIFIED against a real tenant export after a MissingPackageMani
                                                         connectionReferences, flowFailureAlertSubscribed, isManaged}}
     Microsoft.Flow/flows/<asset GUID>/apisMap.json        {"shared_x": "<api resource key>"}
     Microsoft.Flow/flows/<asset GUID>/connectionsMap.json {"shared_x": "<connection resource key>"}
-The asset folder GUID is independent of the definition's own name/id. The human-only definition_pretty.json is NOT
+The asset folder GUID equals the flow's resource key in manifest.json (P-10) and is independent of the definition's own name/id. The human-only definition_pretty.json is NOT
 packaged. GUIDs here are derived deterministically from the display name (uuid5), so rebuilds are stable.
 
 Import behaviour (proven by hand imports):
@@ -25,8 +25,8 @@ Import behaviour (proven by hand imports):
     flowcheck.py fails both, and this builder runs flowcheck first.
   * Resource shapes for the api/connection pairs were modelled on a real export (and a synthesized pair modelled on
     that shape imported fine). iconUri values: pass --template <an exported package from YOUR tenant> to copy the
-    exact api/connection resources from it; without a template the resources carry no iconUri [UNVERIFIED whether the
-    importer requires one -- if the dialog misbehaves, export any flow using that connector and pass it as --template].
+    exact api/connection resources from it; without a template the resources carry no iconUri -- MEASURED fine: such a
+    package imported through the portal (Create as new, connections picked, turned on, ran; run_e2e stage flow-import).
 
     python tools/build-flow-package.py <flow-folder> [--out dist/X.zip] [--template exported.zip] [--skip-check]
                                        [--handoff config/environment.json]   # delivery build: refuse dev-tenant leaks
@@ -86,8 +86,11 @@ def build(folder, out=None, template=None, skip_check=False, handoff=None):
         if c.report():
             raise SystemExit('refusing to package: flowcheck errors above')
     tmpl = template_resources(template)
-    asset = did(name, 'asset')
+    # The asset folder under Microsoft.Flow/flows/ MUST be named by the flow's resource key in manifest.json. With two
+    # different GUIDs the importer accepts the upload, lists the resources, and then sits at "Importing your package"
+    # forever (portal and API alike; live-measured, trap P-10). Every service export uses one GUID for both.
     flow_key = did(name, 'flow-resource')
+    asset = flow_key
     resources = {flow_key: {'type': 'Microsoft.Flow/flows', 'suggestedCreationType': 'New', 'creationType': 'Existing, New, Update',
                             'details': {'displayName': name}, 'configurableBy': 'User', 'hierarchy': 'Root', 'dependsOn': []}}
     apis_map, conns_map = {}, {}
@@ -169,6 +172,8 @@ def self_test():
         check(dfn['properties']['displayName'] == 'SelfTestFlow' and dfn['properties']['apiId'].endswith('shared_logicflows'), 'definition wrapped with apiId + displayName')
         check(amap == {'shared_sharepointonline': [k for k, r in m['resources'].items() if r['type'] == 'Microsoft.PowerApps/apis'][0]}, 'apisMap points at the api resource')
         check(not any(n.endswith('definition_pretty.json') for n in names), 'human-only definition_pretty.json is not packaged')
+        flow_keys = [k for k, r in m['resources'].items() if r['type'] == 'Microsoft.Flow/flows']
+        check(flow_keys == [asset], 'asset folder == the flow resource key (two GUIDs hang the importer, P-10)')
         again = build(f, os.path.join(d, 'dist', 'again.zip'))
         with zipfile.ZipFile(again) as z:
             check(json.loads(z.read('Microsoft.Flow/flows/manifest.json'))['flowAssets']['assetPaths'][0] == asset, 'asset GUID is deterministic across rebuilds')
