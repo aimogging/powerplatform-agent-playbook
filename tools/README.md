@@ -27,7 +27,17 @@ Every tool has an offline `--self-test`; `python tools/run-self-tests.py` runs t
 Configuration: copy `config/environment.example.json` to `config/environment.json` (git-ignored). Token
 caches, package keys, logs and the browser profile live under `~/.pp-playbook/`, never in the repo.
 
-Status of each tool's claims: the checks and self-tests run offline here. The tenant-facing Python modules
-(`devtenant/*`, `deploy.py`) are ports of procedures that were proven on a real tenant with a different
-implementation; the Python code itself is verified only against the offline fakes in its self-test.
-Treat the first live run of each command as a verification run and read its output.
+Status: the checks and self-tests run offline here. The `devtenant` modules were proven live in a commercial
+validation tenant by `example/run_e2e.py` (SharePoint provisioning and cleanup incl. recycle bin, Flow API deploy /
+Http twin / run history, headless app import + references + publish, launch gate with the NULL-rule scan, connector
+runtime schema refresh, `listWadl`, the Playwright app driver, app/flow/list deletion). `deploy.py` (the manifest
+orchestrator) calls the same functions but was itself exercised only by its offline self-test. The device-code prompt
+was not re-run live (see reference/dev-tenant-auth.md).
+
+| First-run and packaging helpers | What it does |
+|---|---|
+| `python -m devtenant doctor` | READ-ONLY: tools, config, a token per API, permissions (site, flows, apps, connections, import storage); PASS/FAIL per line with the fix |
+| `../example/run_e2e.py` | the whole lifecycle on the Contoso demo in the dev tenant, verified cleanup (README "First run") |
+| `leakcheck.py` | refuses a handoff package carrying dev-tenant values or test scaffolding (used by `--handoff`) |
+| `plugin-check.py [--write]` | keeps `skills/playbook-rules` identical to AGENTS.md; validates the plugin/marketplace manifests |
+| `../install.py` | no-git installer/updater (`--self-test` is offline) |

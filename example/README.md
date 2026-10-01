@@ -4,18 +4,24 @@ A deliberately small, invented solution that exercises the whole method end to e
 
 | Piece | What it is | Why it is in the example |
 |---|---|---|
-| `sharepoint/helpdesk.schema.json` | one list, `HelpDeskTickets` | one schema drives both provisioning routes; renamed Title; Choice columns; display names with spaces |
-| `flows/HelpDeskSubmitTicket` | app-called flow: PowerApp trigger (ONE JSON text input) -> create item -> Respond | the Run() contract, `x-ms-dynamically-added`, error Respond, caller identity from headers |
-| `flows/HelpDeskNotifyNewTicket` | list-triggered flow: when Status = New -> mail the operator -> mark Triaged | trigger condition vs. the flow's own write re-firing it; retry policy; Update-not-Create on re-import |
-| `HelpDeskProvisionList` (generated) | button flow, audit-by-default, creates the list/columns if missing | how list changes reach a tenant where nobody runs scripts |
+| `sharepoint/helpdesk.schema.json` | one list, `ContosoHelpDeskTickets` | one schema drives both provisioning routes; renamed Title; Choice columns; display names with spaces |
+| `flows/ContosoHelpDeskSubmitTicket` | app-called flow: PowerApp trigger (ONE JSON text input) -> create item -> Respond | the Run() contract, `x-ms-dynamically-added`, error Respond, caller identity from headers |
+| `flows/ContosoHelpDeskNotifyNewTicket` | list-triggered flow: when Status = New -> mail the operator -> mark Triaged | trigger condition vs. the flow's own write re-firing it; retry policy; Update-not-Create on re-import |
+| `ContosoHelpDeskProvisionList` (generated) | button flow, audit-by-default, creates the list/columns if missing | how list changes reach a tenant where nobody runs scripts |
 | `canvas/Src/*.pa.yaml` | one-screen canvas app "Contoso Help Desk" | block scalars, IfError around Flow.Run, display-name columns, `Title` still `Title` |
 | `build.py` | builds `dist/` (flow packages + stamped `.msapp`) | the manual-import handoff |
 | `deploy.manifest.json` | the same thing, deployed headless into a DEV tenant | the agent's automated loop |
 
-**Verification status: UNVERIFIED end to end.** Every artifact here passes the offline gates (`flowcheck.py`,
-`canvas-lint.py`, `python example/build.py --check`), and every connector action shape is copied from actions that
-imported and ran on a real tenant. The example itself has never been imported anywhere. Run Part A once in a test
-tenant and treat it as the verification; report what differed.
+**Verification status.** Part B was proven live in a commercial validation tenant by `run_e2e.py` (below): list
+provisioned, both flows deployed and running, the app imported headless, published (runtime package Ready, 0 NULL
+rules), a ticket submitted through the Http twin and one through the app in a real browser, each triaged exactly once
+by the list-triggered flow (mail to the operator), run history read, then everything deleted and the deletion
+verified. Part A (a person importing the packages by hand into another tenant) has NOT been run with this example:
+the packages pass the offline gates and use connector shapes that imported elsewhere; treat the first manual import
+as its verification and report what differed.
+
+**First run: `python example/run_e2e.py --template-msapp <a Studio-saved .msapp>`** does Part B end to end and
+cleans up (stages, resume and options: its header, or the repo README "First run").
 
 ---
 
@@ -33,12 +39,12 @@ With `config/environment.json` present, its `siteUrl` and `operatorEmail` are su
 it you get contoso placeholders (fine to inspect, useless to run). Outputs land in `example/dist/`.
 
 **A2. Create the list.** Power Automate -> My flows -> Import -> *Import Package (Legacy)* ->
-`example/dist/HelpDeskProvisionList.zip` -> set the SharePoint connection slot -> *Create as new* -> Import.
+`example/dist/ContosoHelpDeskProvisionList.zip` -> set the SharePoint connection slot -> *Create as new* -> Import.
 Open the flow, Run it with **apply = false** (audit: the run's `Audit_Result` lists what is missing), then Run with
 **apply = true**, then once more with false to confirm nothing is missing.
 
-**A3. Import the two flows** the same way: `HelpDeskSubmitTicket.zip` (SharePoint slot) and
-`HelpDeskNotifyNewTicket.zip` (SharePoint + Outlook slots). First time: *Create as new*. Every later revision:
+**A3. Import the two flows** the same way: `ContosoHelpDeskSubmitTicket.zip` (SharePoint slot) and
+`ContosoHelpDeskNotifyNewTicket.zip` (SharePoint + Outlook slots). First time: *Create as new*. Every later revision:
 choose **Update** and pick the existing flow -- never *Create as new* again (a second copy of the list-triggered
 flow fires on every change, and a re-created app-called flow gets a new GUID the app no longer points at).
 Turn both flows **On**.
@@ -47,8 +53,8 @@ Turn both flows **On**.
 minted by the tenant):
 1. make.powerapps.com -> Create -> Blank app -> Blank canvas app, name **Contoso Help Desk**, Tablet.
 2. Rename `Screen1` to **scrHelpDesk** (tree view -> rename).
-3. Data -> Add data -> SharePoint -> your site -> **HelpDeskTickets**.
-4. Power Automate pane -> Add flow -> **HelpDeskSubmitTicket**.
+3. Data -> Add data -> SharePoint -> your site -> **ContosoHelpDeskTickets**.
+4. Power Automate pane -> Add flow -> **ContosoHelpDeskSubmitTicket**.
 5. Save. Then Save menu (the arrow next to Save) -> **Download a copy**. Keep that file: it is your *base*.
 
 **A5. Stamp the source into the base:**
@@ -72,11 +78,11 @@ second app named after the package's stored name. Then **Publish**.
    of *My tickets* with status **New**.
 3. Within about two minutes the operator mailbox receives "[Help desk] Normal - Printer jam", and the ticket shows
    **Triaged** after a refresh.
-4. Power Automate -> HelpDeskNotifyNewTicket -> run history: exactly ONE run did work for that ticket; the run
+4. Power Automate -> ContosoHelpDeskNotifyNewTicket -> run history: exactly ONE run did work for that ticket; the run
    caused by its own "Triaged" write is skipped by the trigger condition (no second mail).
-5. HelpDeskSubmitTicket -> run history -> the run -> `Respond_Ok` -> inputs: `result_json` is
+5. ContosoHelpDeskSubmitTicket -> run history -> the run -> `Respond_Ok` -> inputs: `result_json` is
    `{"status":"ok","id":N}`.
-6. Break it on purpose: turn HelpDeskSubmitTicket **Off** and submit again -> the app shows the red "did not answer"
+6. Break it on purpose: turn ContosoHelpDeskSubmitTicket **Off** and submit again -> the app shows the red "did not answer"
    message instead of hanging. Turn it back On.
 
 What each failure usually means is in `skills/verify/SKILL.md` ("reading symptoms").
@@ -103,17 +109,17 @@ python tools/deploy.py --manifest example/deploy.manifest.json
 
 `deploy.py` updates flows in place (GUIDs kept), imports the app through the package API, writes the draft's
 connection references under an editing lease, publishes, then runs the GATE: the player's runtime package must be
-`Ready` with **0 NULL rules**. After the first successful run set `"mustExist": true` on HelpDeskNotifyNewTicket.
+`Ready` with **0 NULL rules**. After the first successful run set `"mustExist": true` on ContosoHelpDeskNotifyNewTicket.
 
 Drive the flows and read results without clicking:
 
 ```
 cd tools
-python -m devtenant flow-invoke HelpDeskSubmitTicket payload.json --header x-ms-user-email=tester@contoso.com
-python -m devtenant flow-runs HelpDeskNotifyNewTicket
-python -m devtenant flow-run HelpDeskSubmitTicket <runId>
-python -m devtenant flow-twin-delete HelpDeskSubmitTicket
-python -m devtenant sp-cleanup HelpDeskTickets --tag "[fixture]" --apply
+python -m devtenant flow-invoke ContosoHelpDeskSubmitTicket payload.json --header x-ms-user-email=tester@contoso.com
+python -m devtenant flow-runs ContosoHelpDeskNotifyNewTicket
+python -m devtenant flow-run ContosoHelpDeskSubmitTicket <runId>
+python -m devtenant flow-twin-delete ContosoHelpDeskSubmitTicket
+python -m devtenant sp-cleanup ContosoHelpDeskTickets --tag "[fixture]" --apply
 ```
 
 `payload.json` is `{"payload": "{\"subject\":\"[fixture] printer jam\",\"priority\":\"High\"}"}`. A PowerApp-trigger
