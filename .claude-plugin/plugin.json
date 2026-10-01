@@ -1,0 +1,9 @@
+{
+  "name": "powerplatform-agent-playbook",
+  "version": "1.0.0",
+  "description": "Build and test canvas Power Apps and Power Automate cloud flows with an AI agent: rules, a 13-phase lifecycle, a platform-trap catalogue and Python tools. Delivers importable .msapp and flow packages; a dev tenant is used only to test them.",
+  "author": { "name": "aimogging" },
+  "homepage": "https://github.com/aimogging/powerplatform-agent-playbook",
+  "repository": "https://github.com/aimogging/powerplatform-agent-playbook",
+  "keywords": ["power-platform", "power-apps", "power-automate", "canvas-apps", "cloud-flows", "sharepoint"]
+}

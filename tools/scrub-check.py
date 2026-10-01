@@ -78,7 +78,14 @@ SERVICE_SUBDOMAINS = {'www', 'login', 'graph', 'api', 'static', 'admin'}
 GUID_RE = re.compile(r'\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b')
 HEX32_RE = re.compile(r'(?<![0-9a-fA-F])[0-9a-fA-F]{32}(?![0-9a-fA-F])')
 EMAIL_RE = re.compile(r'[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}')
-URL_RE = re.compile(r'https?://([A-Za-z0-9.-]+)', re.I)
+URL_RE = re.compile(r'https?://([A-Za-z0-9.-]+)([^\s)"\'<>`]*)', re.I)
+# This project's own public home (install one-liners, clone and plugin instructions) and the official Claude Code
+# docs. PREFIX match on host + path, so any other repository on the same hosts is still a finding.
+ALLOWED_URL_PREFIXES = (
+    'github.com/aimogging/powerplatform-agent-playbook',
+    'raw.githubusercontent.com/aimogging/powerplatform-agent-playbook/',
+    'code.claude.com/docs/',
+)
 MODEL_RE = re.compile(
     r'\b(claude-(?:opus|sonnet|haiku|instant)[-.\w]*|gpt-(?:\d|o\d)[-.\w]*|o\d-mini\b|gemini-\d[-.\w]*|'
     r'text-embedding-[-.\w]+|llama-?\d[-.\w]*|mistral-(?:large|medium|small)[-.\w]*)', re.I)
@@ -156,6 +163,8 @@ def scan_text(text, where, deny, findings):
                 continue
             findings.append((where, n, 'email', m.group(0)))
         for m in URL_RE.finditer(line):
+            if (m.group(1) + m.group(2)).lower().startswith(ALLOWED_URL_PREFIXES):
+                continue
             if not host_ok(m.group(1)):
                 findings.append((where, n, 'url', m.group(0)))
         for m in MODEL_RE.finditer(line):
@@ -273,6 +282,9 @@ def self_test():
         check(kinds('https://' + 'realcorp.sharepoint.com/sites/x') == ['url'], 'tenant SharePoint host flagged')
         check(kinds('https://contoso.sharepoint.com/sites/HelpDesk') == [], 'contoso SharePoint host allowed')
         check(kinds('https://graph.microsoft.com/v1.0/me') == [], 'public Microsoft host allowed')
+        check(kinds('curl -fsSL https://raw.githubusercontent.com/aimogging/powerplatform-agent-playbook/main/install.py') == [],
+              'the project install URL allowed')
+        check(kinds('see https://' + 'github.com/someone-else/other-repo') == ['url'], 'another GitHub repo is still a finding')
         check(kinds('https://login.microsoftonline.us/x') == [], 'sovereign login host allowed')
         check(kinds('https://' + 'git.internal.corp/repo') == ['url'], 'unknown host flagged')
         check(kinds('https://<SITE_URL>/_api/web') == [], 'placeholder URL allowed')

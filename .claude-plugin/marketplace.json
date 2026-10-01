@@ -1,0 +1,12 @@
+{
+  "name": "powerplatform-agent-playbook",
+  "owner": { "name": "aimogging" },
+  "description": "The Power Platform agent playbook as a Claude Code plugin: skills for building and testing canvas apps and cloud flows.",
+  "plugins": [
+    {
+      "name": "powerplatform-agent-playbook",
+      "source": "./",
+      "description": "Rules, lifecycle, trap catalogue and Python tools for canvas Power Apps and Power Automate cloud flows. The deliverable is importable packages; the dev tenant is a test harness."
+    }
+  ]
+}

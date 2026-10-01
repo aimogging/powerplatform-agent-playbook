@@ -22,18 +22,37 @@
 <h1>Power Platform agent playbook</h1>
 <p class="muted">Build and test canvas apps and cloud flows with an AI agent; hand production nothing but packages a person imports.</p>
 
+<h2>Install -- one line, no git</h2>
+<p><b>As a Claude Code plugin:</b> run these two commands inside Claude Code.</p>
+<pre>/plugin marketplace add aimogging/powerplatform-agent-playbook</pre>
+<pre>/plugin install powerplatform-agent-playbook@powerplatform-agent-playbook</pre>
+<p><b>As a folder</b> (tools, example, docs; any agent): paste into a terminal -- Windows cmd, macOS or Linux.</p>
+<pre>curl -fsSL https://raw.githubusercontent.com/aimogging/powerplatform-agent-playbook/main/install.py | python -</pre>
+<pre>curl -fsSL https://raw.githubusercontent.com/aimogging/powerplatform-agent-playbook/main/install.py | python3 -</pre>
+<p>Use whichever of <code>python</code> / <code>python3</code> / <code>py</code> starts Python 3.9+. It downloads the latest version into
+<code>./powerplatform-agent-playbook</code>, sets up a Python environment and a browser for app tests, creates
+<code>config/environment.json</code> and tells you what to fill in. Update later (your config is kept):</p>
+<pre>curl -fsSL https://raw.githubusercontent.com/aimogging/powerplatform-agent-playbook/main/install.py | python - --update</pre>
+<p class="muted">Both one-liners need the repository to be public (the plugin route also works for a private one if you are signed in to GitHub with access).</p>
+
 <h2>1. Check the tools (no tenant needed)</h2>
-<p>From the repository root:</p>
+<p>From the install folder:</p>
 <pre>python tools/run-self-tests.py
 python example/build.py --check</pre>
 
-<h2>2. Point it at a dev tenant</h2>
-<pre>cp config/environment.example.json config/environment.json</pre>
-<p>Fill in the tenant id, environment id, site URL and your address. The file is git-ignored; token caches live in <code>~/.pp-playbook/</code>.</p>
+<h2>2. First run: prove your setup in a dev tenant</h2>
+<p>Fill in <code>config/environment.json</code> (tenant id, environment id, site URL, your own address; plugin installs use
+<code>~/.pp-playbook/environment.json</code>). Make sure a SharePoint and an Office 365 Outlook connection exist in the maker portal.
+Then sign in once per API and run the read-only doctor:</p>
 <pre>cd tools
 python -m devtenant login sharepoint
-python -m devtenant whoami
+python -m devtenant login powerApps
+python -m devtenant login apihub
+python -m devtenant doctor
 cd ..</pre>
+<p>Every doctor line says PASS / FAIL / SKIP, whether a problem is a missing TOOL, a CONFIG value, a SIGN-IN or a PERMISSION, and how to fix it.
+Then run the whole lifecycle on the invented demo; it cleans up after itself and prints a PASS/FAIL table:</p>
+<pre>python example/run_e2e.py --template-msapp "any-app-you-saved-in-Studio.msapp"</pre>
 
 <h2>3. The loop</h2>
 <table>
@@ -56,7 +75,7 @@ python tools/deploy.py --manifest example/deploy.manifest.json --plan-only</pre>
 <table>
 <tr><td><code>AGENTS.md</code></td><td>rules, routing, the loop</td></tr>
 <tr><td><code>skills/*/SKILL.md</code></td><td>procedures per task</td></tr>
-<tr><td><code>reference/platform-traps.md</code></td><td>140 traps: symptom, cause, fix, proof</td></tr>
+<tr><td><code>reference/platform-traps.md</code></td><td>144 traps: symptom, cause, fix, proof</td></tr>
 <tr><td><code>reference/attested-connector-shapes.md</code></td><td>connector shapes that imported and ran</td></tr>
 </table>
 </main>
