@@ -32,10 +32,11 @@ python tools/msapp-tool.py stamp base.msapp <Src dir> "dist/<App>.msapp"
 `canvas-lint`, and refuses a base whose embedded App checker result has formula errors (fix those in Studio first).
 To edit a download by hand instead: `msapp-tool.py unpack` -> edit `Src/` -> `msapp-tool.py pack`.
 
-Proof status: the stamp shape (Python-copied entries of a Studio download) opened in Studio; the tar-zipped
-unpack/packed.json/zip round trip was MEASURED end to end (import -> 0 formula errors -> Save as Replace -> Publish ->
-runtime package Ready). The combination "Python zip + packed.json" itself is UNVERIFIED: if Studio refuses it, rezip
-the unpacked folder with `tar -a -cf out.zip -C <dir> .` and rename to `.msapp` (P-06).
+Proof status: MEASURED through the person path by `example/run_e2e.py` stage studio-import (validation tenant,
+Playwright driving the portal exactly as below): the Python-zipped stamp opened via Import app > From file, App
+checker Formulas = 0, Save as (new), then a second stamp into THAT Studio download -- whose compiled controls carried a
+marker text -- showed the YAML text (C-17), Save as > Replace existing, Publish, runtime package Ready with 0 NULL
+rules, one Submit in play mode. No tar rezip is needed (P-06).
 
 ## Route B: the pac CLI
 
@@ -59,8 +60,9 @@ existing screen are fine. A control type the base never used may need one instan
 2. It opens in Studio as a new, unsaved app. Open **App checker**: *Formulas* must show 0 errors. If not, stop and
    send a screenshot of the expanded panel (or the saved app, see `verify`).
 3. Save menu -> **Save as -> Replace existing -> <App> -> Replace**. Never press plain Save first -- it creates a
-   second app named after the package's stored name (P-05).
-4. **Publish**. Play the app once; if the player says "You're using an old version", refresh (C-44).
+   second app named after the package's stored name (P-05). Close any other Studio tab of that app first (C-43).
+4. **Publish**. If Studio now says the app is read-only (P-11): Back -> Leave, wait a minute, Apps -> <App> -> ... ->
+   Edit, then Publish. Play the app once; if the player says "You're using an old version", refresh (C-44).
 5. If a flow shows "Not connected" or an action is unknown: Power Automate pane -> the flow -> ... -> Refresh (C-03).
    If the flow was re-created (new GUID), remove and re-add it (C-39).
 6. Roll back if needed: app -> Details -> Versions -> previous version -> Restore -> Publish.

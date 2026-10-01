@@ -16,9 +16,11 @@ A deliberately small, invented solution that exercises the whole method end to e
 provisioned, both flows deployed and running, the app imported headless, published (runtime package Ready, 0 NULL
 rules), a ticket submitted through the Http twin and one through the app in a real browser, each triaged exactly once
 by the list-triggered flow (mail to the operator), run history read, then everything deleted and the deletion
-verified. Part A (a person importing the packages by hand into another tenant) has NOT been run with this example:
-the packages pass the offline gates and use connector shapes that imported elsewhere; treat the first manual import
-as its verification and report what differed.
+verified. Part A's steps were then driven exactly as a person does them, by Playwright in the same tenant
+(`run_e2e.py` stages studio-import and flow-import): the `.msapp` opened via Import app > From file with 0 formula
+errors and the YAML read (proven with a marker in the base's own controls), Save as > Replace existing, Publish, one
+Submit in play mode; the flow package imported via Import Package (Legacy) with connections picked, turned on, ran.
+Not yet run: an import into a second tenant -- treat the first one as its verification and report what differed.
 
 **First run: `python example/run_e2e.py --template-msapp <a Studio-saved .msapp>`** does Part B end to end and
 cleans up (stages, resume and options: its header, or the repo README "First run").

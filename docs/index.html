@@ -51,7 +51,8 @@ python -m devtenant login apihub
 python -m devtenant doctor
 cd ..</pre>
 <p>Every doctor line says PASS / FAIL / SKIP, whether a problem is a missing TOOL, a CONFIG value, a SIGN-IN or a PERMISSION, and how to fix it.
-Then run the whole lifecycle on the invented demo; it cleans up after itself and prints a PASS/FAIL table:</p>
+Then run the whole lifecycle on the invented demo -- including the person path: the handoff <code>.msapp</code> opened in Studio and
+the flow package imported in Power Automate, both driven in a browser -- it cleans up after itself and prints a PASS/FAIL table:</p>
 <pre>python example/run_e2e.py --template-msapp "any-app-you-saved-in-Studio.msapp"</pre>
 
 <h2>3. The loop</h2>
@@ -75,7 +76,7 @@ python tools/deploy.py --manifest example/deploy.manifest.json --plan-only</pre>
 <table>
 <tr><td><code>AGENTS.md</code></td><td>rules, routing, the loop</td></tr>
 <tr><td><code>skills/*/SKILL.md</code></td><td>procedures per task</td></tr>
-<tr><td><code>reference/platform-traps.md</code></td><td>144 traps: symptom, cause, fix, proof</td></tr>
+<tr><td><code>reference/platform-traps.md</code></td><td>148 traps: symptom, cause, fix, proof</td></tr>
 <tr><td><code>reference/attested-connector-shapes.md</code></td><td>connector shapes that imported and ran</td></tr>
 </table>
 </main>

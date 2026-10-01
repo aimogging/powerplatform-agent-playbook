@@ -107,12 +107,18 @@ follows `:`. Proof: OBSERVED.
 Cause: only `packed.json` with `"LoadConfiguration": {"LoadFromYaml": true}` makes Studio load Src; a raw "Download a
 copy" has no such file, so Studio loads the compiled `Controls/*.json`. Studio drops the file again on its next save.
 Fix: `msapp-tool.py pack/stamp` adds it; every new download needs it again. Proof: MEASURED (with/without A/B; 47
-App-checker fixes "vanished" before the cause was found).
+App-checker fixes "vanished" before the cause was found). Re-measured through the person path (Import app > From
+file in Studio): a Studio "Download a copy" whose own compiled controls were edited to show a marker text, stamped with
+the YAML by `msapp-tool.py stamp`, opened in Studio showing the YAML text, not the marker; the published document
+carried no marker.
 
-**C-18 New screens that exist only in YAML.** Status: UNCERTAIN. Early experiments said a YAML-only screen made the app
-fail to open; a later YAML-only screen packaged fine once C-10 was fixed, so the earlier failures may have been C-10.
-Safe practice: create/rename screens in Studio (blank is fine), save, download, then author their contents in YAML.
-New controls inside an existing screen: MEASURED fine.
+**C-18 New screens that exist only in YAML.** Early experiments said a YAML-only screen made the app fail to open; a
+later YAML-only screen packaged fine once C-10 was fixed, so the earlier failures were probably C-10. MEASURED since:
+a Python-stamped `.msapp` whose base had NO compiled screen at all (`Controls/1.json` = the App only; the whole screen
+lived in `Src/`) opened in Studio via Import app > From file with every control, 0 formula errors, and saved/published
+normally (Studio then wrote the screen's compiled controls itself). Still the conservative practice for a production
+handoff: base = a Studio download of the target app with the screens present. New controls inside an existing screen:
+MEASURED fine.
 
 **C-19 A control type the base package has never used.** Observed: adding a Timer to an app whose pack base lacked the
 timer template needed the template copied in from a package that had it. Fix: add one instance in Studio first, or
@@ -199,8 +205,10 @@ one. `deploy.py` refuses a premium data source and never wires a premium flow de
 definition write fails `InvalidApplicationNameCharacters`. Test the EXACT production name in the dev tenant. Proof:
 MEASURED.
 
-**C-43 An app open in Studio holds an editing lease.** API writes get 409 `AppLeaseActive` up to ~15 min after the tab
-closes. Wait and retry; never deploy a renamed copy to dodge it. Proof: MEASURED.
+**C-43 An app open in Studio holds an editing lease.** API writes get 409 `AppLeaseActive` (or
+`AppLeaseSameUserConflict`) and other Studio sessions open it read-only. Closing the tab does not release it promptly
+(measured: still held after an hour); Studio's Back -> Leave releases it within about a minute. Probe with
+acquireLease + immediate releaseLease. Never deploy a renamed copy to dodge it. Proof: MEASURED.
 
 **C-44 After a publish the player may show "You're using an old version"** until refreshed; test after it is gone.
 Proof: OBSERVED.
@@ -383,7 +391,9 @@ MEASURED.
 
 **P-01 Legacy flow package layout.** `manifest.json` + `Microsoft.Flow/flows/manifest.json` +
 `Microsoft.Flow/flows/<asset GUID>/{definition.json, apisMap.json, connectionsMap.json}`; a missing flows manifest =
-`MissingPackageManifest`. Hand-built api/connection resources modelled on an export import fine. Proof: MEASURED.
+`MissingPackageManifest`; the asset GUID must be the flow's resource key (P-10). Hand-built api/connection resources
+modelled on an export import fine. Proof: MEASURED (portal import of a `build-flow-package.py` package driven like a
+person: upload, Create as new, connections picked, imported in about a minute, turned on, ran).
 
 **P-02 Legacy import refuses `inputs.authentication` on OpenApiConnection actions**
 (`WorkflowRunActionInputsInvalidProperty`), and a connector used by an action but missing from
@@ -400,7 +410,8 @@ by a human. Proof: MEASURED.
 `Resources/PublishInfo.json` AppName (can be stale). Use Save as -> Replace existing. Proof: MEASURED.
 
 **P-06 Windows `tar -a -cf x.msapp` writes a TAR** (format follows the extension); zip to `.zip` and rename. Proof:
-MEASURED.
+MEASURED. Not needed for this repo's tools: a `.msapp` zipped by Python's `zipfile` (`msapp-tool.py stamp/pack`)
+opened in Studio via Import app > From file. Proof: MEASURED (person path, validation tenant).
 
 **P-07 `pac canvas validate` is retired and `pac canvas pack` validates nothing** (no property, formula or YAML-strict
 checks). `pac canvas unpack` reads the COMPILED layer (misleading for LoadFromYaml packages) and throws
@@ -413,6 +424,30 @@ base), stamping only Src into it; refuse a base whose embedded App checker resul
 
 **P-09 A YAML-packed document is re-serialised by the service on import** (control counts change, `packed.json`
 disappears). Do not diff a downloaded copy against your build and conclude a stale build ran. Proof: MEASURED.
+
+**P-10 The flow asset folder must be named by the flow's resource key.** Symptom: Import Package (Legacy) accepts the
+upload, lists the flow and its connections, connections can be picked, Import is pressed -- and the page stays at
+"Importing your package ... Don't navigate away" indefinitely; no flow is ever created (the API's importPackage shows
+the same as `202 Running`, D-24). Cause: `Microsoft.Flow/flows/<GUID>/` and the flow's key in `manifest.json`
+`resources` were two different GUIDs; every service export uses ONE GUID for both. Fix: `build-flow-package.py` uses
+the flow resource key as the folder name (self-test enforces it). Proof: MEASURED A/B in a validation tenant (two GUIDs:
+8+ minutes, nothing created; one GUID: "All package resources were successfully imported", flow created, turned on,
+ran).
+
+**P-11 After Save as > Replace existing, Studio may reopen the app READ-ONLY.** Symptom: the replace saves (the app gets
+a new draft version), then Studio shows "This app is read-only because someone else has editing control" and Publish
+is unavailable in that session. Cause: the save's own editing lease (C-43). Fix: Back -> Leave, wait about a minute,
+open the app for Edit (Apps -> ... -> Edit) and Publish there. Leaving Studio by closing or navigating the tab does NOT
+release the lease promptly (it stayed held for over an hour); Back -> Leave released it within a minute. Proof:
+MEASURED (person path, validation tenant).
+
+**P-13 A newly saved app is missing from the app list for minutes.** Symptom: right after Save as (new), Studio's
+"Replace existing" picker and the apps list API do not show the app although GET by id returns it. Fix: wait until it
+is listed before a Replace-existing step; clean up test apps by recorded id, not only by listing. Proof: MEASURED
+(405 s in one run).
+
+**P-12 An imported flow arrives turned OFF.** After Import Package (Legacy) -> Create as new the flow exists but is
+stopped; turn it on (flow details -> Turn on) before testing it. Proof: MEASURED.
 
 ---
 
@@ -530,10 +565,11 @@ minute. Proof: MEASURED.
 duration (`PT10S`), not seconds; the runtime package blobs (`manifest.json`, the compiled JS) come back gzip-compressed
 even when the client never asked -- decode by the gzip magic bytes, not by headers. Proof: MEASURED.
 
-**D-24 BAP importPackage of a hand-built FLOW package can hang.** One attempt stayed `202 Running` for more than 15
-minutes although `listImportParameters` accepted the same package in 5 seconds. For dev-tenant tests deploy flows
-through the Flow API (update in place); the legacy package remains what a person imports by hand, where the portal
-importer is proven (P-01). Check afterwards for a late-created copy and delete it. Proof: OBSERVED (once).
+**D-24 BAP importPackage of a hand-built FLOW package stayed `202 Running` for 15+ minutes** although
+`listImportParameters` accepted it in 5 seconds. Cause found later: P-10 (asset folder GUID != flow resource key) --
+the portal importer hung on the same packages the same way. For dev-tenant tests the flows still go through the Flow
+API (update in place keeps GUIDs); the person path is proven separately (P-10, `run_e2e.py` stage flow-import).
+Proof: MEASURED.
 
 ---
 

@@ -19,8 +19,9 @@ stable GUIDs from the flow name (rebuilds are identical), and never packages `de
 committed source stays tenant-free.
 
 `--template`: an exported package from the target tenant; its api/connection resources (with the tenant's icon URIs)
-are copied instead of synthesized. Without it the resources carry no `iconUri` -- UNVERIFIED whether every importer
-accepts that; a synthesized pair modelled on an export imported fine.
+are copied instead of synthesized. Without it the resources carry no `iconUri`; such a package (no template) imported
+through the portal in a validation tenant (MEASURED by `example/run_e2e.py` stage flow-import). The folder under
+`Microsoft.Flow/flows/` is named by the flow's resource key -- two different GUIDs hang the importer forever (P-10).
 
 ## Import rules the importer enforces (P-01, P-02)
 
@@ -37,7 +38,9 @@ accepts that; a synthesized pair modelled on an export imported fine.
    Never Create as new for a revision: two list-triggered copies both fire, and a re-created app-called flow gets a new
    GUID the app does not know (P-03, C-39).
 3. For each connection slot: **Select during import** -> pick the existing connection (or create it once).
-4. Import. Open the flow -> **Turn on** (imported flows may be off).
+4. Import; wait for "All package resources were successfully imported". Open the flow -> **Turn on** (an imported
+   flow arrives off, P-12). If the page stays at "Importing your package" for more than a few minutes, the package
+   is malformed (P-10) -- cancel and send the agent the package name.
 5. First run: for a list trigger, make a FRESH change to an item (the import re-baselined the trigger, F-15); for an
    app-called flow, call it from the app. Check the run history (see `verify`).
 6. If the flow is app-called and its trigger inputs or Respond outputs changed: in Studio, Power Automate pane -> the

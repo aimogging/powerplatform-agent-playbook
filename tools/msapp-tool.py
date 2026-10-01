@@ -21,10 +21,9 @@ Subcommands
 
 Proven route (a real tenant): Download a copy -> unpack -> edit Src -> add packed.json -> zip -> Import app >
 From file -> App checker 0 formula errors -> Save as > Replace existing -> Publish -> runtime package Ready.
-That proof zipped with Windows tar ("tar -a -cf x.zip", forward-slash names, directory entries).
-[UNVERIFIED] this script's Python zip of the same tree has not itself been imported; if Studio refuses it,
-rezip the unpacked folder with tar (tar -a -cf out.zip -C <dir> .) and rename .zip -> .msapp.
-Studio opened Python-written msapps in the 'stamp' shape before (entries copied from a Studio download).
+That proof zipped with Windows tar. MEASURED since: this script's own Python zip ('stamp' into a Studio download,
+and into a base whose screen existed only in YAML) opened via Import app > From file, 0 formula errors, Save as >
+Replace existing, Publish, runtime package Ready, played (example/run_e2e.py stage studio-import). No tar needed.
 
 Traps this tool refuses or warns about: see reference/platform-traps.md "Canvas packaging".
 """

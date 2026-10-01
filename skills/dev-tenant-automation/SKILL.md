@@ -25,8 +25,8 @@ manual imports. Tool: `cd tools && python -m devtenant --help` (standard library
 3. `python -m devtenant doctor` -- READ-ONLY; one PASS/FAIL line per tool, config value, token and permission, each
    classified TOOL / CONFIG / SIGN-IN / PERMISSION with its fix. `whoami` shows audiences and expiry (never tokens).
 4. `python example/run_e2e.py --template-msapp <Studio-saved .msapp>` -- the first-run proof: the Contoso demo through
-   provision, deploy, bind, publish gate, flow + browser drive, run-history verify, handoff build and verified
-   cleanup. Use it again after any change to these tools.
+   provision, deploy, bind, publish gate, flow + browser drive, run-history verify, handoff build, the person path
+   through the maker portals (Studio import of the `.msapp`, portal import of the flow package) and verified cleanup. Use it again after any change to these tools.
 
 ## SharePoint
 

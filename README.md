@@ -76,7 +76,10 @@ python example/run_e2e.py --template-msapp "<any app you saved in Studio in this
 ```
 
    Stages: preflight, provision, build, deploy, bind, publish (runtime gate), drive the flows, drive the app in a real
-   browser, verify run history, build the handoff packages from the same sources, cleanup (verified). The summary
+   browser, verify run history, build the handoff packages from the same sources, then the PERSON PATH -- the handoff
+   `.msapp` opened in Power Apps Studio (Import app > From file, App checker, Save as > Replace existing, Publish,
+   one Submit in play mode) and the flow package imported in Power Automate (Import Package (Legacy), connections
+   picked, Turn on, one run) -- and cleanup (verified). The summary
    table shows PASS/FAIL and the tier each stage proves; `--from <stage>` resumes, `--keep` leaves the demo in place,
    `--only cleanup` removes it later. The template `.msapp` only supplies Microsoft's control templates: any app saved
    in Studio that uses a text label, text input, button, rectangle, vertical gallery and the modern drop down. The
@@ -130,10 +133,12 @@ installing: `claude --plugin-dir <path to this folder>`.
 The offline tools are tested by their self-tests here. The platform facts in `reference/` carry their own proof level.
 The tenant-facing Python modules and the Contoso example were proven live end to end in a commercial validation
 tenant with `example/run_e2e.py` (provision, flow deploy, headless app deploy and publish, runtime gate, flows driven
-through a twin, the app driven in a browser, run history, handoff build, verified cleanup). Device-code sign-in
-itself was not re-run there (the run reused existing refresh tokens of the same public clients); treat your first
-`login` as a check and read its output. The manual-import handoff of the example (a person importing the packages
-into a second tenant) has not been run.
+through a twin, the app driven in a browser, run history, handoff build, verified cleanup) -- and the DELIVERABLES
+were proven the way a person handles them: the Python-built `.msapp` opened in Studio (0 formula errors, the stamped
+YAML read, Save as > Replace existing, published, played) and the flow package imported through the portal (connections
+picked, turned on, ran). That run found and fixed a package defect the API path could not show (P-10). Device-code
+sign-in itself was not re-run (the run reused existing refresh tokens of the same public clients); treat your first
+`login` as a check. Not run: an import into a SECOND tenant (the person path ran in the same validation tenant).
 
 ## Keeping it clean
 

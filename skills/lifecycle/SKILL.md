@@ -110,3 +110,7 @@ All of 2 and 6-12 in one command, with verified cleanup -- also the first-run ch
 `python example/run_e2e.py --template-msapp <Studio-saved .msapp>` (stage table with tiers; `--from`, `--keep`,
 `--only cleanup`). Its handoff stage rebuilds the flow packages with TARGET values from the same sources and proves
 they differ from the tested build only in the declared tokens, and that the dev shell is refused as a handoff base.
+Its studio-import and flow-import stages then do phase 12 the way the person will -- in the dev tenant, through the
+maker portals in a browser (`devtenant/portal.py`): open the `.msapp` in Studio, App checker, Save as > Replace
+existing, Publish, play; Import Package (Legacy), pick connections, Turn on, run. A green API deploy never proves
+importability (P-02, P-10); these two stages do.

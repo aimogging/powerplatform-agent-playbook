@@ -38,6 +38,7 @@ was not re-run live (see reference/dev-tenant-auth.md).
 |---|---|
 | `python -m devtenant doctor` | READ-ONLY: tools, config, a token per API, permissions (site, flows, apps, connections, import storage); PASS/FAIL per line with the fix |
 | `../example/run_e2e.py` | the whole lifecycle on the Contoso demo in the dev tenant, verified cleanup (README "First run") |
+| `devtenant/portal.py` | drives the maker portals like the person receiving the handoff: Studio Import app > From file, App checker, Save as (new / Replace existing), Publish, Edit; Power Automate Import Package (Legacy) with connection picking, Turn on (used by `run_e2e.py`) |
 | `leakcheck.py` | refuses a handoff package carrying dev-tenant values or test scaffolding (used by `--handoff`) |
 | `plugin-check.py [--write]` | keeps `skills/playbook-rules` identical to AGENTS.md; validates the plugin/marketplace manifests |
 | `../install.py` | no-git installer/updater (`--self-test` is offline) |

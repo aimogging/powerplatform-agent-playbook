@@ -50,7 +50,7 @@ connectors, sometimes calling an LLM gateway. Two environments, two different jo
 | Dev-tenant sign-in, SharePoint provisioning/fixtures, running flows, approvals, browser tests | `skills/dev-tenant-automation` |
 | Deploy flows + apps to the dev tenant through the APIs | `skills/deploy-headless` |
 
-Symptom-first lookup: `reference/platform-traps.md` (144 traps, each with symptom, cause, fix and proof).
+Symptom-first lookup: `reference/platform-traps.md` (148 traps, each with symptom, cause, fix and proof).
 
 ## The lifecycle (detail: `skills/lifecycle`)
 
