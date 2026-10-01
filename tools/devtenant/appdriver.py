@@ -40,7 +40,7 @@ class App(object):
             if consent.count() > 0:
                 try:
                     self.page.frame_locator('iframe[name^="consentService-iFrame"]').get_by_role('button', name='Allow', exact=True).click(timeout=3000)
-                    time.sleep(3)
+                    self.page.wait_for_timeout(3 * 1000)
                     continue
                 except Exception:
                     pass
@@ -48,10 +48,14 @@ class App(object):
             if self.frame is not None:
                 try:
                     if self.c(first_control).is_visible(timeout=1000):
-                        return self
+                        # the consent dialog can arrive AFTER the app has rendered behind it (measured on a new app)
+                        self.page.wait_for_timeout(4000)
+                        if self.page.locator('iframe[name^="consentService-iFrame"]').count() == 0:
+                            return self
+                        continue
                 except Exception:
                     pass
-            time.sleep(2)
+            self.page.wait_for_timeout(2 * 1000)
         raise TimeoutError('%s never became visible' % first_control)
 
     def c(self, name, nth=0):
@@ -60,14 +64,17 @@ class App(object):
 
     def click(self, name, settle=1.5):
         self.c(name).click()
-        time.sleep(settle)
+        self.page.wait_for_timeout(settle * 1000)
 
     def fill(self, name, text, settle=0.5):
         box = self.c(name).locator('input, textarea').first
-        box.click()
+        try:
+            box.click(timeout=5000)
+        except Exception:             # a toast or the player's busy overlay can intercept the click (observed live)
+            box.click(timeout=10000, force=True)
         box.fill(text)
         box.press('Tab')
-        time.sleep(settle)
+        self.page.wait_for_timeout(settle * 1000)
 
     def text(self, name):
         return (self.c(name).inner_text() or '').strip()
@@ -80,13 +87,13 @@ class App(object):
                     return True
             except Exception:
                 pass
-            time.sleep(1)
+            self.page.wait_for_timeout(1 * 1000)
         raise TimeoutError('%s: condition not met in %ds (last text %r)' % (name, timeout, self.text(name)))
 
     def shot(self, path, settle=1.5):
         vp = self.page.viewport_size or {'width': 1600, 'height': 900}
         self.page.mouse.move(vp['width'] - 2, vp['height'] - 2)
-        time.sleep(settle)
+        self.page.wait_for_timeout(settle * 1000)
         os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
         self.page.screenshot(path=path)
         return path

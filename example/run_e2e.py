@@ -19,6 +19,13 @@ Stages (each prints PASS/FAIL/SKIP and the tier it proves; the run stops at the 
   drive-app     the published app in a real browser: fill, Submit, the new row appears in the gallery
   verify        run history: the app's Submit run Succeeded, one Notify run per ticket, no re-fire, rows correct
   handoff       the DELIVERY build of the SAME sources with target values; leak-checked; differs only in tokens
+  studio-import THE DELIVERABLE, the way a person handles it: the .msapp built by the handoff code path (this tenant's
+                values) opened in Power Apps Studio (Import app > From file), App checker Formulas = 0, Save as a new
+                app; then a second build stamped into THAT Studio-saved download (whose own controls carry a marker
+                text) opened again: Studio must show the YAML text, not the marker; Save as > Replace existing;
+                Publish; runtime package Ready / 0 NULL rules; one Submit in play mode
+  flow-import   the flow package, the way a person handles it: Power Automate > Import Package (Legacy), pick
+                connections, Create as new, Turn on, trigger it once with a list row, run Succeeded
   cleanup       delete everything the demo created (rows, twin, flows, app, list + recycle bin) and verify it is gone
 
 Everything is named for the Contoso demo; nothing else in the tenant is touched. Notification mail goes only to
@@ -52,6 +59,11 @@ APP_NAME = 'Contoso Help Desk'
 LIST = 'ContosoHelpDeskTickets'
 SUBMIT, NOTIFY, PROVISION = 'ContosoHelpDeskSubmitTicket', 'ContosoHelpDeskNotifyNewTicket', 'ContosoHelpDeskProvisionList'
 TWIN = SUBMIT + ' [http twin]'
+STUDIO_APP = 'Contoso Help Desk Studio Import Test'          # the app the person-path stage creates in Studio
+FLOW_IMPORT = NOTIFY + ' Import Test'                        # the flow the person-path stage imports in the portal
+DEMO_FLOWS = (TWIN, SUBMIT, NOTIFY, PROVISION, FLOW_IMPORT)
+DEMO_APPS = (APP_NAME, STUDIO_APP)
+MARKER = 'MARKER FROM BASE CONTROLS'
 TEST_PREFIXES = ('E2E-', '[fixture]')
 SCHEMA = os.path.join(HERE, 'sharepoint', 'helpdesk.schema.json')
 SRC = os.path.join(HERE, 'canvas', 'Src')
@@ -63,7 +75,8 @@ STAGES = [
     ('preflight', 'read-only'), ('provision', 'dev-tenant proven'), ('build', 'offline-checked'),
     ('deploy', 'dev-tenant proven'), ('bind', 'dev-tenant proven'), ('publish', 'dev-tenant proven'),
     ('drive-flows', 'dev-tenant proven'), ('drive-app', 'dev-tenant proven'), ('verify', 'dev-tenant proven'),
-    ('handoff', 'offline-checked'), ('cleanup', 'dev-tenant proven'),
+    ('handoff', 'offline-checked'), ('studio-import', 'person path proven'), ('flow-import', 'person path proven'),
+    ('cleanup', 'dev-tenant proven'),
 ]
 NAMES = [s for s, _ in STAGES]
 
@@ -138,6 +151,12 @@ class Run(object):
 
     def flow_exact(self, name):
         return self.fc.find('=' + name)
+
+    def flows_named(self, name):
+        return [f for f in self.fc.list() if (f.get('properties') or {}).get('displayName') == name]
+
+    def apps_named(self, name):
+        return [a for a in self.pa.apps() if (a.get('properties') or {}).get('displayName') == name]
 
     def app_exact(self):
         hits = [a for a in self.pa.apps() if (a.get('properties') or {}).get('displayName') == APP_NAME]
@@ -409,6 +428,171 @@ class Run(object):
                     detail += '; stamping into the dev shell with --handoff is refused (gate works)'
         return detail + ' -> %s' % out
 
+    # ------------------------------------------------------------------ the person path (maker portals)
+    def _browser(self):
+        from devtenant import appdriver
+        try:
+            import playwright  # noqa: F401
+        except ImportError:
+            raise Fail('Playwright is not installed', 'pip install playwright && playwright install msedge')
+        return appdriver.browser(self.cfg)
+
+    def s_studio_import(self):
+        import zipfile
+        import build as example_build
+        from devtenant import canvasdoc, portal, runtime_rules, appdriver
+        aid = self.ids().get('app')
+        if not aid:
+            raise Skip('no dev app (bind skipped): the first Studio base comes from it')
+        sdir = os.path.join(WORK, 'studio')
+        os.makedirs(sdir, exist_ok=True)
+        dev_cfg = self.args.config or os.path.join(REPO, 'config', 'environment.json')
+        stale = {a['name'] for a in self.apps_named(STUDIO_APP)}       # a rerun starts clean (only the demo's own app)
+        if self.ids().get('studioApp'):
+            stale.add(self.ids()['studioApp'])
+        for old in stale:
+            try:
+                self.pa.delete_app(old)
+            except (SystemExit, Exception):
+                pass
+        # round A: the handoff code path (example/build.py --base) on the dev app's document -> Studio -> Save as new
+        base0 = self.pa.download_document(aid, os.path.join(sdir, 'base-dev.msapp'))
+        built_a = example_build.build(os.path.join(sdir, 'roundA'), dev_cfg, base=base0, quiet=True)[-1]
+        detail = []
+        p, ctx = self._browser()
+        page = ctx.pages[0] if ctx.pages else ctx.new_page()
+        try:
+            try:
+                st = portal.open_msapp(page, self.cfg, built_a, 'lblTitle')
+                errs = portal.formula_errors(page, st)
+                if errs:
+                    raise Fail('App checker shows %d formula error(s) in the Python-built .msapp' % errs,
+                               'screenshot: %s' % portal.shot(page, sdir, 'roundA-checker'))
+                new_id, _ro = portal.save_as_new(page, st, STUDIO_APP)
+                self.ids()['studioApp'] = new_id
+                self.st['created']['studioApp'] = True
+                save_state(self.st)
+                portal.publish(page, st)
+                portal.close_studio(page, st)
+                detail.append('Python-zipped .msapp opened in Studio (its screen existed only in YAML), Formulas 0 '
+                              'errors, saved as a new app')
+                # Studio's Replace-existing picker lists an app only once the environment's app list does (minutes)
+                t0 = time.time()
+                while not any(a['name'] == new_id for a in self.apps_named(STUDIO_APP)):
+                    if time.time() - t0 > 900:
+                        raise Fail('the new app never appeared in the app list (Replace existing would not find it)')
+                    page.wait_for_timeout(20000)
+                detail.append('listed after %ds' % (time.time() - t0))
+                # round B: a person's real base = a Studio "Download a copy"; mark ITS controls, stamp the YAML, reopen
+                saved = self.pa.download_document(new_id, os.path.join(sdir, 'studio-saved.msapp'))
+                marked = mark_base(saved, os.path.join(sdir, 'studio-saved-marked.msapp'))
+                built_b = example_build.build(os.path.join(sdir, 'roundB'), dev_cfg, base=marked, quiet=True)[-1]
+                st = portal.open_msapp(page, self.cfg, built_b, 'lblTitle')
+                title = portal.control_text(st, 'lblTitle')
+                if title != 'Contoso Help Desk':
+                    raise Fail('Studio shows %r for lblTitle: it did not read the stamped YAML (C-17)' % title)
+                errs = portal.formula_errors(page, st)
+                if errs:
+                    raise Fail('App checker shows %d formula error(s) after the restamp' % errs)
+                before = draft_version(self.pa, new_id)
+                _id, read_only = portal.save_as_replace(page, st, STUDIO_APP)
+                portal.close_studio(page, st)
+                wait_lease(self.pa, new_id)
+                after = draft_version(self.pa, new_id)
+                if after == before:
+                    raise Fail('Save as > Replace existing did not produce a new version of %s (still %s)' % (STUDIO_APP, before))
+                st = portal.open_edit(page, self.cfg, new_id, 'lblTitle')
+                portal.publish(page, st)
+                portal.close_studio(page, st)
+                detail.append('restamped into the Studio-saved download: Studio showed the YAML text (not the base '
+                              'marker), Formulas 0, Save as > Replace existing%s, published'
+                              % (' (Studio then went read-only; published from an edit session)' if read_only else ''))
+            except portal.PortalError as ex:
+                raise Fail(str(ex), 'screenshot: %s' % portal.shot(page, sdir, 'studio-fail'))
+        finally:
+            ctx.close()
+            p.stop()
+        launch = self.pa.launch(new_id)
+        det = launch.get('listAppPackageOperationDetails') or {}
+        if det.get('packageStatus') != 'Ready':
+            raise Fail('Studio-published app: packageStatus=%s %s' % (det.get('packageStatus'), det.get('error') or ''))
+        pub = self.pa.download_document(new_id, os.path.join(sdir, 'studio-published.msapp'))
+        nulls = runtime_rules.scan(runtime_rules.fetch_package_js(self.http, launch),
+                                   runtime_rules.document_formulas(canvasdoc.Msapp(pub)))
+        if nulls:
+            raise Fail('Studio-published app has NULL rules: %s' % nulls)
+        with zipfile.ZipFile(pub) as z:
+            if any(MARKER.encode() in z.read(n) for n in z.namelist()):
+                raise Fail('the published document still carries the base marker: Studio used the base controls')
+        detail.append('runtime package Ready, 0 NULL rules, no base marker in the published document')
+        subject = '%s studio %s' % (self.tag, time.strftime('%H%M%S'))
+        p, ctx = self._browser()
+        try:
+            app = appdriver.App(ctx, appdriver.play_url(self.cfg, new_id))
+            app.ready('txtSubject', timeout=180)
+            app.fill('txtSubject', subject)
+            app.fill('txtDetails', 'Submitted from the app a person would import.')
+            app.click('btnSubmit', settle=2)
+            t0 = time.time()
+            while time.time() - t0 < 120:
+                if app.frame.locator('[data-control-name="lblRowSubject"]', has_text=subject).count():
+                    break
+                app.page.wait_for_timeout(2000)
+            else:
+                raise Fail('the Studio-imported app did not show the submitted row (screenshot %s)'
+                           % app.shot(os.path.join(sdir, 'play-fail.png')))
+            app.shot(os.path.join(sdir, 'play.png'))
+        finally:
+            ctx.close()
+            p.stop()
+        detail.append('played: Submit -> the row appears in the gallery')
+        return '; '.join(detail)
+
+    def s_flow_import(self):
+        from devtenant import portal
+        pkg = os.path.join(self.dist, NOTIFY + '.zip')
+        if not os.path.isfile(pkg):
+            raise Skip('no %s (build skipped)' % pkg)
+        for old in self.flows_named(FLOW_IMPORT):
+            self.fc.delete(old['name'])
+        # the API-deployed copy would process the same rows: stop it for this stage (cleanup deletes it anyway)
+        live = self.ids().get(NOTIFY) or (self.flow_exact(NOTIFY) or {}).get('name')
+        if live:
+            self.http.json('POST', self.fc._u('flows/%s/stop' % live), headers=self.fc._h(), body={}, allow_write_retry=True)
+        sdir = os.path.join(WORK, 'studio')
+        p, ctx = self._browser()
+        page = ctx.pages[0] if ctx.pages else ctx.new_page()
+        try:
+            try:
+                msg = portal.import_flow_package(page, self.cfg, pkg, FLOW_IMPORT)
+                hits = self.flows_named(FLOW_IMPORT)
+                if len(hits) != 1:
+                    raise Fail('after the import, %d flow(s) are named %r' % (len(hits), FLOW_IMPORT))
+                fid = hits[0]['name']
+                self.ids()['flowImport'] = fid
+                self.st['created']['flowImport'] = True
+                save_state(self.st)
+                portal.turn_on_flow(page, self.cfg, fid)
+            except portal.PortalError as ex:
+                raise Fail(str(ex), 'screenshot: %s' % portal.shot(page, sdir, 'flow-import-fail'))
+        finally:
+            ctx.close()
+            p.stop()
+        state = (self.fc.get(fid).get('properties') or {}).get('state')
+        if state != 'Started':
+            raise Fail('the imported flow is %s after Turn on' % state)
+        since = now_iso()
+        row = self.sp.add_item(LIST, {'Title': '%s flow-import %s' % (self.tag, time.strftime('%H%M%S')),
+                                      'Details': 'Created to trigger the imported flow once.',
+                                      'RequesterEmail': self.cfg['operatorEmail'].lower()})
+        item_id = (row.get('d') or row).get('Id')
+        self.wait_row(item_id, lambda r: (r.get('Status') or '') == 'Triaged', 240)
+        runs = [r for r in self.fc.runs(fid, 10) if (r.get('properties') or {}).get('startTime', '') >= since]
+        if not runs or any((r.get('properties') or {}).get('status') != 'Succeeded' for r in runs):
+            raise Fail('imported flow runs: %s' % [(r['name'], (r.get('properties') or {}).get('status')) for r in runs])
+        return ('%s; connections picked in the portal, Create as new, turned on; a new row -> run Succeeded, row '
+                'Triaged' % msg)
+
     def s_cleanup(self):
         if self.args.keep:
             raise Skip('--keep: the demo stays in the tenant; remove it later with --only cleanup')
@@ -428,23 +612,40 @@ class Run(object):
                 done.append('%d test row(s) deleted; list kept (it holds rows this run did not create)' % n)
         else:
             done += self.sp.delete_list(LIST)   # purge a recycled copy left by an interrupted cleanup
-        for name in (TWIN, SUBMIT, NOTIFY, PROVISION):
-            f = self.flow_exact(name)
-            if f:
+        for name in DEMO_FLOWS:
+            for f in self.flows_named(name):
                 self.fc.delete(f['name'])
                 done.append('flow %s deleted' % name)
-        app = self.app_exact()
-        if app:
-            self.pa.delete_app(app['name'])
-            done.append('app deleted')
+        for name in DEMO_APPS:
+            for a in self.apps_named(name):
+                self.pa.delete_app(a['name'])
+                done.append('app %s deleted' % name)
+        for key in ('app', 'studioApp'):              # the app list lags (minutes): also by recorded id
+            aid = self.ids().get(key)
+            if aid:
+                try:
+                    self.pa.get(aid)
+                except (SystemExit, Exception):
+                    continue
+                self.pa.delete_app(aid)
+                done.append('app %s deleted by id' % key)
         # verify
         left = []
         time.sleep(5)
-        for name in (TWIN, SUBMIT, NOTIFY, PROVISION):
-            if self.flow_exact(name):
+        for name in DEMO_FLOWS:
+            if self.flows_named(name):
                 left.append('flow ' + name)
-        if self.app_exact():
-            left.append('app ' + APP_NAME)
+        for name in DEMO_APPS:
+            if self.apps_named(name):
+                left.append('app ' + name)
+        for key in ('app', 'studioApp'):
+            aid = self.ids().get(key)
+            if aid:
+                try:
+                    self.pa.get(aid)
+                    left.append('app id of ' + key)
+                except (SystemExit, Exception):
+                    pass
         if self.sp.find_list(LIST) and (self.st['created'].get('list') or not self.sp.items(LIST, select='Id')):
             left.append('list ' + LIST)
         if not self.sp.find_list(LIST) and self.sp.recycle_bin(LIST):
@@ -454,6 +655,51 @@ class Run(object):
         self.st['ids'], self.st['created'], self.st['tickets'] = {}, {}, {}
         self.st.pop('tag', None)
         return '; '.join(done) + '; verified: none of them exists any more' if done else 'nothing to remove; verified clean'
+
+
+def mark_base(src, dst):
+    """Copy a Studio download, replacing lblTitle's text in its CONTROLS (not Src) with MARKER: if Studio ever shows the
+    marker, it built the app from the base's controls and ignored the stamped YAML (C-17)."""
+    import zipfile
+    old = json.dumps('Contoso Help Desk').encode()          # InvariantScript '"Contoso Help Desk"' as JSON text
+    new = json.dumps(MARKER).encode()
+    old_j, new_j = json.dumps(old.decode())[1:-1].encode(), json.dumps(new.decode())[1:-1].encode()
+    hit = False
+    with zipfile.ZipFile(src) as z, zipfile.ZipFile(dst, 'w', zipfile.ZIP_DEFLATED) as o:
+        for info in z.infolist():
+            data = z.read(info.filename)
+            if info.filename.replace(chr(92), '/').startswith('Controls/'):
+                changed = data.replace(old_j, new_j)
+                hit = hit or changed != data
+                data = changed
+            o.writestr(info, data)
+    if not hit:
+        raise Fail("could not find lblTitle's text in the Studio download's controls to mark")
+    return dst
+
+
+def draft_version(pa, app_id):
+    st = (pa.get(app_id, draft=True) or {}).get('properties') or {}
+    d = ((st.get('unpublishedAppDefinition') or {}).get('properties') or {})
+    return d.get('appVersion') or st.get('appVersion')
+
+
+def wait_lease(pa, app_id, timeout=900):
+    """Wait until no Studio session holds the app's editing lease (probe = acquire + release at once)."""
+    from devtenant.powerapps import API_DEF
+    from devtenant.http import HttpError
+    url = '%s/apps/%s' % (pa.base, app_id)
+    t0 = time.time()
+    while time.time() - t0 < timeout:
+        try:
+            lease = pa.api('POST', url + '/acquireLease?api-version=' + API_DEF, {})
+            pa.api('POST', url + '/releaseLease?api-version=' + API_DEF, {'leaseId': lease.get('leaseId')})
+            return
+        except HttpError as ex:
+            if 'Lease' not in ex.body:
+                raise
+        time.sleep(20)
+    raise Fail('the editing lease on the Studio app did not clear in %ds (C-43)' % timeout)
 
 
 def src_hash(folder):
@@ -474,6 +720,11 @@ def main(argv=None):
     ap.add_argument('--refire-window', default=120, type=int, help='seconds to wait for a trigger re-fire in verify (default 120)')
     ap.add_argument('--debug', action='store_true', help='print tracebacks')
     args = ap.parse_args(argv)
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(errors='replace')     # Playwright messages carry characters a Windows console cannot print
+        except (AttributeError, ValueError):
+            pass
     os.makedirs(WORK, exist_ok=True)
     try:
         run = Run(args)
