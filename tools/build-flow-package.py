@@ -29,6 +29,7 @@ Import behaviour (proven by hand imports):
     importer requires one -- if the dialog misbehaves, export any flow using that connector and pass it as --template].
 
     python tools/build-flow-package.py <flow-folder> [--out dist/X.zip] [--template exported.zip] [--skip-check]
+                                       [--handoff config/environment.json]   # delivery build: refuse dev-tenant leaks
     python tools/build-flow-package.py --self-test
 """
 import argparse
@@ -65,7 +66,7 @@ def template_resources(template_zip):
     return out
 
 
-def build(folder, out=None, template=None, skip_check=False):
+def build(folder, out=None, template=None, skip_check=False, handoff=None):
     with open(os.path.join(folder, 'definition.json'), encoding='utf-8-sig') as fh:
         src = json.load(fh)
     meta = {}
@@ -127,6 +128,13 @@ def build(folder, out=None, template=None, skip_check=False):
         z.writestr(base + 'definition.json', json.dumps(definition, separators=(',', ':')))
         z.writestr(base + 'apisMap.json', json.dumps(apis_map))
         z.writestr(base + 'connectionsMap.json', json.dumps(conns_map))
+    if handoff:
+        spec = importlib.util.spec_from_file_location('leakcheck', os.path.join(HERE, 'leakcheck.py'))
+        lk = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(lk)
+        if lk.check(out, handoff):
+            os.remove(out)
+            raise SystemExit('refusing the HANDOFF package: it carries dev-tenant values or test scaffolding (see LEAK lines)')
     print('RESULT: %s -> %s (%d connector(s): %s)' % (name, os.path.normpath(out), len(apis_map), ', '.join(apis_map) or 'none'))
     print('IMPORT: My flows > Import > Import Package (Legacy) > upload > set each connection slot > Update (existing) or Create as new (first time) > Import')
     return out
@@ -185,8 +193,9 @@ def main():
     ap.add_argument('--out')
     ap.add_argument('--template')
     ap.add_argument('--skip-check', action='store_true')
+    ap.add_argument('--handoff', metavar='DEV_CONFIG', help='this is the delivery build: refuse any dev-tenant value from that config')
     a = ap.parse_args()
-    build(a.folder, a.out, a.template, a.skip_check)
+    build(a.folder, a.out, a.template, a.skip_check, a.handoff)
     return 0
 
 

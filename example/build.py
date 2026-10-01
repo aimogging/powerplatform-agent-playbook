@@ -4,6 +4,8 @@
     python example/build.py                          # flows -> dist/*.zip  (+ the list-provisioning flow)
     python example/build.py --base <downloaded.msapp> # + dist/Contoso Help Desk.msapp (Src stamped into your base)
     python example/build.py --check                  # offline self-check with placeholder values (no config needed)
+    python example/build.py --config <target.json> --base <target download> --handoff config/environment.json
+                                                     # the DELIVERY build -> dist/handoff/, refused if a dev value leaks
 
 Tenant values come from config/environment.json (siteUrl, operatorEmail) and are substituted into the flow
 definitions at BUILD time, so the committed sources stay tenant-free. Without a config the placeholders
@@ -22,9 +24,9 @@ import zipfile
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)
 TOOLS = os.path.join(REPO, 'tools')
-FLOWS = ['HelpDeskSubmitTicket', 'HelpDeskNotifyNewTicket']
+FLOWS = ['ContosoHelpDeskSubmitTicket', 'ContosoHelpDeskNotifyNewTicket']
 APP_NAME = 'Contoso Help Desk'
-LIST = 'HelpDeskTickets'
+LIST = 'ContosoHelpDeskTickets'
 
 
 def _tool(fname, mod):
@@ -118,9 +120,9 @@ def provisioning_flow(schema):
         'fields_step': "@result('Scope_Fields')",
         'message': "@if(equals(triggerBody()?['apply'], true), 'Missing items were created. Run again with apply = false to verify nothing is missing.', 'Nothing was changed. Run again with apply = true to create what is missing.')"}}
     return {'properties': {
-        'displayName': 'HelpDeskProvisionList',
+        'displayName': 'ContosoHelpDeskProvisionList',
         'connectionReferences': {'shared_sharepointonline': {
-            'connectionName': 'shared-sharepointonline-HelpDeskProvisionList', 'source': 'Embedded',
+            'connectionName': 'shared-sharepointonline-ContosoHelpDeskProvisionList', 'source': 'Embedded',
             'id': '/providers/Microsoft.PowerApps/apis/shared_sharepointonline', 'tier': 'NotSpecified', 'apiName': 'sharepointonline',
             'isProcessSimpleApiReferenceConversionAlreadyDone': False}},
         'definition': {
@@ -140,7 +142,7 @@ def substitute(obj, vals):
     return json.loads(text)
 
 
-def build(dist, config_path, base=None, quiet=False):
+def build(dist, config_path, base=None, quiet=False, handoff=None):
     vals = values(config_path)
     bfp = _tool('build-flow-package.py', 'build_flow_package')
     stage = os.path.join(dist, 'src')
@@ -150,16 +152,16 @@ def build(dist, config_path, base=None, quiet=False):
     schema = json.load(open(os.path.join(HERE, 'sharepoint', 'helpdesk.schema.json'), encoding='utf-8'))
     sources = {name: (json.load(open(os.path.join(HERE, 'flows', name, 'definition.json'), encoding='utf-8')),
                       json.load(open(os.path.join(HERE, 'flows', name, 'flow.json'), encoding='utf-8'))) for name in FLOWS}
-    sources['HelpDeskProvisionList'] = (provisioning_flow(schema), {
-        'displayName': 'HelpDeskProvisionList',
-        'description': 'Creates the HelpDeskTickets list and its columns if missing. Run with apply = false first (audit), then true.',
+    sources['ContosoHelpDeskProvisionList'] = (provisioning_flow(schema), {
+        'displayName': 'ContosoHelpDeskProvisionList',
+        'description': 'Creates the ContosoHelpDeskTickets list and its columns if missing. Run with apply = false first (audit), then true.',
         'connectors': {'shared_sharepointonline': {'displayName': 'SharePoint'}}})
     for name, (definition, meta) in sources.items():
         folder = os.path.join(stage, name)
         os.makedirs(folder)
         json.dump(substitute(definition, vals), open(os.path.join(folder, 'definition.json'), 'w', encoding='utf-8'), indent=1)
         json.dump(meta, open(os.path.join(folder, 'flow.json'), 'w', encoding='utf-8'), indent=1)
-        outputs.append(bfp.build(folder, os.path.join(dist, name + '.zip')))
+        outputs.append(bfp.build(folder, os.path.join(dist, name + '.zip'), handoff=handoff))
     cl = _tool('canvas-lint.py', 'canvas_lint')
     files, issues = cl.lint([os.path.join(HERE, 'canvas', 'Src')])
     if cl.report(files, issues, True):
@@ -167,7 +169,7 @@ def build(dist, config_path, base=None, quiet=False):
     if base:
         mt = _tool('msapp-tool.py', 'msapp_tool')
         out = os.path.join(dist, APP_NAME + '.msapp')
-        mt.cmd_stamp(base, os.path.join(HERE, 'canvas', 'Src'), out)
+        mt.cmd_stamp(base, os.path.join(HERE, 'canvas', 'Src'), out, handoff=handoff)
         outputs.append(out)
     else:
         print('NOTE: no --base: the app is not packed. Create the app shell in Studio, Download a copy, then rerun with --base.')
@@ -179,7 +181,7 @@ def check():
     with tempfile.TemporaryDirectory() as d:
         outs = build(d, None)
         ok = ok and len(outs) == 3
-        with zipfile.ZipFile(os.path.join(d, 'HelpDeskSubmitTicket.zip')) as z:
+        with zipfile.ZipFile(os.path.join(d, 'ContosoHelpDeskSubmitTicket.zip')) as z:
             dfn = [n for n in z.namelist() if n.endswith('/definition.json')][0]
             text = z.read(dfn).decode('utf-8')
         ok = ok and 'contoso.sharepoint.com/sites/HelpDesk' in text and '__SITE_URL__' not in text
@@ -191,7 +193,7 @@ def check():
             z.writestr('Src/scrHelpDesk.pa.yaml', 'Screens:\n  scrHelpDesk:\n    Properties:\n      Fill: =Color.White\n')
         outs = build(d, None, base)
         with zipfile.ZipFile(outs[-1]) as z:
-            ok = ok and b'HelpDeskSubmitTicket.Run' in z.read('Src/scrHelpDesk.pa.yaml') and 'packed.json' in z.namelist()
+            ok = ok and b'ContosoHelpDeskSubmitTicket.Run' in z.read('Src/scrHelpDesk.pa.yaml') and 'packed.json' in z.namelist()
     print(('  ok   ' if ok else '  FAIL ') + 'three flow packages built and flowchecked, tokens substituted, app stamped into a base with packed.json')
     print('self-test: ' + ('PASS' if ok else 'FAIL'))
     return 0 if ok else 1
@@ -201,11 +203,13 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('--base', help='a Studio "Download a copy" of the app shell (see README step 3)')
     ap.add_argument('--config', default=os.path.join(REPO, 'config', 'environment.json'))
+    ap.add_argument('--handoff', metavar='DEV_CONFIG', help='delivery build for another environment: --config points at THAT '
+                    "environment's values and every artifact is refused if it carries a value from DEV_CONFIG")
     ap.add_argument('--check', action='store_true')
     a = ap.parse_args()
     if a.check:
         return check()
-    outs = build(os.path.join(HERE, 'dist'), a.config, a.base)
+    outs = build(os.path.join(HERE, 'dist', 'handoff' if a.handoff else ''), a.config, a.base, handoff=a.handoff)
     print('\nBuilt:\n  ' + '\n  '.join(os.path.relpath(o, REPO) for o in outs))
     return 0
 

@@ -10,7 +10,7 @@ Subcommands
   unpack <app.msapp> <dir>               extract a Studio download for editing (refuses a non-empty dir)
   lint   <dir>                           package-level checks + tools/canvas-lint.py over <dir>/Src
   pack   <dir> <out.msapp>               lint, add packed.json if missing, zip the folder
-  stamp  <base.msapp> <SrcDir> <out.msapp>
+  stamp  <base.msapp> <SrcDir> <out.msapp> [--handoff <dev config>]
                                          copy every entry of a Studio-downloaded BASE byte-for-byte, replace
                                          Src/*.pa.yaml from SrcDir, add packed.json (the base keeps the
                                          tenant bindings: data sources, flow ids, connection ids)
@@ -163,7 +163,17 @@ def refuse_if_red(base, allow_errors):
                          'fix them in Studio first (or --allow-errors)' % len(errs))
 
 
-def cmd_stamp(base, src_dir, out, allow_errors=False, skip_lint=False):
+def leak_gate(out, handoff):
+    if not handoff:
+        return
+    lk = _load('leakcheck.py', 'leakcheck')
+    if lk.check(out, handoff):
+        os.remove(out)
+        raise SystemExit('refusing the HANDOFF app: it carries dev-tenant values (a dev-tenant base?) -- stamp into a base '
+                         'downloaded from the TARGET environment')
+
+
+def cmd_stamp(base, src_dir, out, allow_errors=False, skip_lint=False, handoff=None):
     refuse_if_red(base, allow_errors)
     if not skip_lint:
         cl = _load('canvas-lint.py', 'canvas_lint')
@@ -192,6 +202,7 @@ def cmd_stamp(base, src_dir, out, allow_errors=False, skip_lint=False):
                 print('WARN: Src/%s is new (not in the base). A screen that exists only in YAML may not load -- '
                       'create the screen in Studio, Save, Download a copy, and stamp onto that.' % leaf)
         o.writestr('packed.json', packed_json())
+    leak_gate(out, handoff)
     print('RESULT: stamped %s: %d Src file(s) replaced, %d added, packed.json set -> %s' % (base, replaced, added, out))
     print('NEXT: Import app > From file (.msapp) -> App checker -> Save as > Replace existing -> Publish')
     return 0
@@ -323,6 +334,7 @@ def main():
     p = sub.add_parser('pack'); p.add_argument('dir'); p.add_argument('out'); p.add_argument('--skip-lint', action='store_true')
     p = sub.add_parser('stamp'); p.add_argument('base'); p.add_argument('src'); p.add_argument('out')
     p.add_argument('--allow-errors', action='store_true'); p.add_argument('--skip-lint', action='store_true')
+    p.add_argument('--handoff', metavar='DEV_CONFIG', help='delivery build: refuse any dev-tenant value from that config')
     p = sub.add_parser('msapr'); p.add_argument('base'); p.add_argument('out'); p.add_argument('--allow-errors', action='store_true')
     p = sub.add_parser('info'); p.add_argument('msapp')
     a = ap.parse_args()
@@ -333,7 +345,7 @@ def main():
     if a.cmd == 'pack':
         return cmd_pack(a.dir, a.out, a.skip_lint)
     if a.cmd == 'stamp':
-        return cmd_stamp(a.base, a.src, a.out, a.allow_errors, a.skip_lint)
+        return cmd_stamp(a.base, a.src, a.out, a.allow_errors, a.skip_lint, a.handoff)
     if a.cmd == 'msapr':
         return cmd_msapr(a.base, a.out, a.allow_errors)
     return cmd_info(a.msapp)
