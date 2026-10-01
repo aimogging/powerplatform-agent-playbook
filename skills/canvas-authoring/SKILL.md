@@ -5,6 +5,9 @@ description: Author or edit a Power Apps canvas app as .pa.yaml source (Power Fx
 
 # Canvas authoring
 
+> Paths here are relative to the playbook root: the repo root when this repo is your project (template), or
+> `${CLAUDE_PLUGIN_ROOT}` when it is installed as a Claude Code plugin -- e.g. `python ${CLAUDE_PLUGIN_ROOT}/tools/flowcheck.py`.
+
 Canvas apps are authored here as **Source Code layout** YAML: `Src/App.pa.yaml` (App-level `OnStart`, `Formulas`)
 and one `Src/<screen>.pa.yaml` per screen. Tenant bindings (which list, which flow, which connection) are NOT in the
 YAML -- they live in the Studio-saved package the YAML is stamped into (see `canvas-packaging`).
@@ -70,6 +73,29 @@ Bindings and licensing
 - Studio REFLOWS `Parent.Width/Height` to the viewport; anchor deliberately.
 - Show mockups/renders only at design decision points, before building -- after implementation the real app is the
   artifact.
+
+## Layout renders without a tenant (`tools/canvas-render/`)
+
+```
+python tools/canvas-render/render-screen.py Src/scrMain.pa.yaml --out work/scrMain.html [--png work/scrMain.png]
+python tools/canvas-render/render-screen.py Src/scrMain.pa.yaml --theme-file my-theme.json --theme-var varTheme
+python tools/canvas-render/render-screen.py Src/scrMain.pa.yaml --sample-data samples.json --set varPane=2
+python tools/canvas-render/calibrate.py studio-outerHTML.html Src/scrMain.pa.yaml     # measure the renderer's drift
+python tools/canvas-render/build-catalog.py --src <folder of your apps>               # learn control defaults
+python tools/canvas-render/render-screen.py --self-test
+```
+
+- A REVIEW tool, not a compiler: positions, sizes, fills, fonts (pt x 4/3), borders and radii from the YAML; every
+  value it had to default is listed under the page, fallbacks are outlined amber, `If()`/`Switch()` first-branch
+  guesses purple. Use it for design gates (mockups the user approves) and to catch overlaps/clipping before import.
+- Themes are config: `App.OnStart`'s `Set(varTheme, {...})` record is read when present; otherwise
+  `theme-neutral.json` (a neutral default) or your `--theme-file`. Token names are whatever your app uses
+  (`--theme-var`).
+- `--png` needs Playwright. `calibrate.py` compares against a DevTools outerHTML capture of the running app (not a
+  screenshot) and ranks the largest position/size errors.
+- Measured on the example: the render of `example/canvas/Src/scrHelpDesk.pa.yaml` matched the published app's layout
+  (header, form column, dropdowns, button, gallery panel) in a validation tenant; texts bound to data show as
+  `(dynamic text)`.
 
 ## Workflow
 

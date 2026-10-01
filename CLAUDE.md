@@ -1,5 +1,10 @@
 # AGENTS.md -- Power Platform agent playbook
 
+**The deliverable is a functional, importable `.msapp` plus cloud-flow packages that a person imports into another
+environment.** Headless deployment to the dev tenant exists ONLY as a test harness for automated end-to-end and
+functional testing -- never as the delivery mechanism. Build once, test that build, ship that build; no dev-tenant
+scaffolding (test twins, fixtures, dev ids) may reach the handoff (`--handoff` builds refuse it).
+
 You develop and test **canvas Power Apps** and **Power Automate cloud flows**, backed by SharePoint and Microsoft 365
 connectors, sometimes calling an LLM gateway. Two environments, two different jobs:
 
@@ -7,7 +12,8 @@ connectors, sometimes calling an LLM gateway. Two environments, two different jo
 - **Production tenant**: locked down. A person imports the packages you build, by hand, and reports back. You never
   touch it and no script runs there.
 
-`CLAUDE.md` is an identical copy of this file for agents that read that name. Edit both together.
+`CLAUDE.md` is an identical copy of this file for agents that read that name. Edit both together, then run
+`python tools/plugin-check.py --write` (it regenerates the plugin's `playbook-rules` skill from this text).
 
 ## Non-negotiable rules
 
@@ -34,6 +40,7 @@ connectors, sometimes calling an LLM gateway. Two environments, two different jo
 
 | The task | Skill |
 |---|---|
+| **Anything new or bigger than a one-line fix: start here** | `skills/lifecycle` |
 | Write/fix a canvas app (Power Fx, controls, screens, data, flow calls) | `skills/canvas-authoring` |
 | Get YAML into a `.msapp` a person imports; "my edits don't show" | `skills/canvas-packaging` |
 | Write/fix a cloud flow definition (WDL, connectors, expressions) | `skills/cloud-flow-authoring` |
@@ -43,24 +50,28 @@ connectors, sometimes calling an LLM gateway. Two environments, two different jo
 | Dev-tenant sign-in, SharePoint provisioning/fixtures, running flows, approvals, browser tests | `skills/dev-tenant-automation` |
 | Deploy flows + apps to the dev tenant through the APIs | `skills/deploy-headless` |
 
-Symptom-first lookup: `reference/platform-traps.md` (140 traps, each with symptom, cause, fix and proof).
+Symptom-first lookup: `reference/platform-traps.md` (144 traps, each with symptom, cause, fix and proof).
 
-## The loop
+## The lifecycle (detail: `skills/lifecycle`)
 
-```
- 1 AUTHOR    flows/<Flow>/definition.json, canvas Src/*.pa.yaml, SharePoint schema JSON
- 2 CHECK     flowcheck, canvas-lint (offline, seconds)                          -> tier 0
- 3 DEV TEST  deploy.py (provision -> flows -> app -> publish -> runtime gate),
-             drive flows (Http twin), drive the app (Playwright), read runs,
-             clean fixtures                                                   -> tier 1
- 4 PACKAGE   build-flow-package.py -> <Flow>.zip ; msapp-tool.py stamp -> <App>.msapp
- 5 HANDOFF   numbered import steps + a test checklist with expected results
- 6 PROD      the person imports (Update, pick connections, turn on; Save as ->
-             Replace existing, publish), runs the checklist, reports      -> tier 2
- 7 REPORT    what passed where, what is unverified, what to watch
-```
+1. Requirements -- crisp questions; read-only census of existing data.
+2. Data model -- list schema JSON; naming, Choice/Lookup, indexes.
+3. UX mocks -- render every screen; the user approves before any canvas change.
+4. Architecture -- Power Fx vs. flows, flow contracts, respond-early, no premium on the app.
+5. Develop -- canvas YAML, flow WDL, attested shapes only.
+6. Check offline -- flowcheck, canvas-lint -> tier 0.
+7. Package -- flow zips, `.msapp` stamped into a Studio-saved base.
+8. Dev-tenant deploy -- the TEST HARNESS (`deploy.py`), never the delivery.
+9. Publish gate -- runtime package Ready, 0 NULL rules.
+10. Drive and test -- flows via twins, app via browser, run history, fixtures cleaned -> tier 1.
+11. Screenshots and user docs -- real app, HTML guides.
+12. Handoff = THE DELIVERY -- same build, target values, leak-checked; the person imports and reports -> tier 2.
+13. Iterate -- update in place, refresh signatures/schemas, roll back through versions.
 
-Loop back from 3 or 6 with the exact error text. A failure in production that the dev tenant did not show is usually
+First run in a new dev tenant: `python -m devtenant doctor` (from `tools/`, read-only), then `python example/run_e2e.py`
+-- the whole loop on the Contoso demo, with verified cleanup (README "First run").
+
+Loop back from 10 or 12 with the exact error text. A failure in production that the dev tenant did not show is usually
 an importer difference (P-02), a schema/policy difference (C-02, C-28, L-15), or an old build still running (X-05).
 
 ## One-time setup per app
@@ -80,6 +91,9 @@ tools/                  Python tools (README.md lists them); every one has --sel
 config/                 environment.example.json (copy to environment.json, never commit it)
 example/                Contoso Help Desk: invented end-to-end demo (README walkthrough)
 docs/                   optional HTML for humans (dark, copy buttons)
+install.py              no-git installer/updater for people (curl ... | python -)
+.claude-plugin/         plugin + marketplace manifests (the repo is also a Claude Code plugin; skills/playbook-rules
+                        is GENERATED from this file by tools/plugin-check.py --write)
 ```
 
 ## Working conventions

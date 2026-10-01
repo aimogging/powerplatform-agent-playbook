@@ -5,6 +5,9 @@ description: Turn canvas-app .pa.yaml sources into a .msapp that a person import
 
 # Canvas packaging for manual import
 
+> Paths here are relative to the playbook root: the repo root when this repo is your project (template), or
+> `${CLAUDE_PLUGIN_ROOT}` when it is installed as a Claude Code plugin -- e.g. `python ${CLAUDE_PLUGIN_ROOT}/tools/flowcheck.py`.
+
 The production owner imports the `.msapp` by hand. Your job: a package Studio will open AND read, plus steps a human
 can follow without judgement calls.
 

@@ -5,6 +5,9 @@ description: Build a legacy import package (.zip) from a cloud-flow source folde
 
 # Cloud-flow packaging for manual import
 
+> Paths here are relative to the playbook root: the repo root when this repo is your project (template), or
+> `${CLAUDE_PLUGIN_ROOT}` when it is installed as a Claude Code plugin -- e.g. `python ${CLAUDE_PLUGIN_ROOT}/tools/flowcheck.py`.
+
 ```
 python tools/flowcheck.py flows/<FlowName>
 python tools/build-flow-package.py flows/<FlowName> --out dist/<FlowName>.zip [--template <export.zip>]

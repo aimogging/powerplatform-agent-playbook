@@ -5,6 +5,9 @@ description: Author or fix a Power Automate cloud flow as a Workflow Definition 
 
 # Cloud-flow authoring (WDL)
 
+> Paths here are relative to the playbook root: the repo root when this repo is your project (template), or
+> `${CLAUDE_PLUGIN_ROOT}` when it is installed as a Claude Code plugin -- e.g. `python ${CLAUDE_PLUGIN_ROOT}/tools/flowcheck.py`.
+
 There is NO compiler for cloud flows. Import is slow and run-time errors appear only after a trigger fires. So:
 attested shapes only, `flowcheck.py` always, and say what you could not verify.
 

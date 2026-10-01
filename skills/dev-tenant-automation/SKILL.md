@@ -5,6 +5,12 @@ description: Automate a DEV/TEST Microsoft 365 tenant from Python so apps and fl
 
 # Dev-tenant automation
 
+> Paths here are relative to the playbook root: the repo root when this repo is your project (template), or
+> `${CLAUDE_PLUGIN_ROOT}` when it is installed as a Claude Code plugin -- e.g. `python ${CLAUDE_PLUGIN_ROOT}/tools/flowcheck.py`.
+
+**Purpose: automated functional testing of the build that will be delivered as importable packages.** Nothing created
+here (twins, fixtures, test connections, dev ids) is part of the delivery; `--handoff` builds refuse it.
+
 Everything here is the AGENT's tooling for a tenant it may change. The end user never runs it; production still gets
 manual imports. Tool: `cd tools && python -m devtenant --help` (standard library only; Playwright optional).
 
@@ -12,9 +18,15 @@ manual imports. Tool: `cd tools && python -m devtenant --help` (standard library
 
 1. `config/environment.json` from the example (git-ignored): tenant id, environment id (`Default-<tenant id>` for the
    default environment), site URL, operator e-mail, optional `connections` map.
-2. `python -m devtenant login sharepoint` (device code) -- the same FOCI refresh token then serves `flow`, `graph`,
-   `apihub` silently. `login powerApps` and `login dataverse` use other clients (reference/dev-tenant-auth.md).
-3. `python -m devtenant whoami` -- audiences and expiry, never token values.
+2. Three sign-ins (device code, once each): `login sharepoint` (its FOCI token also serves `flow` and `graph`),
+   `login powerApps` (also `dataverse`), `login apihub` (the client with `Runtime.All`). Matrix and why:
+   reference/dev-tenant-auth.md. To start from an existing refresh token of the same client:
+   `login <key> --refresh-token-from <file.json>`.
+3. `python -m devtenant doctor` -- READ-ONLY; one PASS/FAIL line per tool, config value, token and permission, each
+   classified TOOL / CONFIG / SIGN-IN / PERMISSION with its fix. `whoami` shows audiences and expiry (never tokens).
+4. `python example/run_e2e.py --template-msapp <Studio-saved .msapp>` -- the first-run proof: the Contoso demo through
+   provision, deploy, bind, publish gate, flow + browser drive, run-history verify, handoff build and verified
+   cleanup. Use it again after any change to these tools.
 
 ## SharePoint
 

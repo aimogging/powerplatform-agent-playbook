@@ -5,6 +5,13 @@ description: Deploy cloud flows and canvas apps into a DEV/TEST environment thro
 
 # Headless deploy (dev tenant)
 
+> Paths here are relative to the playbook root: the repo root when this repo is your project (template), or
+> `${CLAUDE_PLUGIN_ROOT}` when it is installed as a Claude Code plugin -- e.g. `python ${CLAUDE_PLUGIN_ROOT}/tools/flowcheck.py`.
+
+**This is a test harness, not a delivery route.** It puts the build into a dev tenant so it can be tested end to end
+automatically. The deliverable is the importable package built from the SAME sources (`canvas-packaging`,
+`cloud-flow-packaging`) with `--handoff` so no dev-tenant value or test scaffolding leaks into it.
+
 ```
 python tools/deploy.py --manifest <m.json> --plan-only       # PRE (offline) + PLAN (read-only)
 python tools/deploy.py --manifest <m.json>                   # ... + confirm + APPLY
@@ -43,8 +50,14 @@ wipes them on its first save (D-09).
 ## Limits and status
 
 - Connections cannot be created by API; the first connection per connector is made once by hand (D-05, P-04).
-- The Power Apps-audience token route in Python is UNVERIFIED (reference/dev-tenant-auth.md); every protocol step above
-  was MEASURED with a different implementation. Treat the first live run as verification and read every line.
-- The app shell (data sources + flows added once in Studio, then "Download a copy") is still required: the document's
-  data-source entries are minted by the tenant (P-08).
+- Proven live with THIS Python (validation tenant, `example/run_e2e.py`): create and update-in-place imports, draft
+  references, publish, the launch gate (Ready, 0 NULL rules) and deletion. Traps found on the way: D-22 (a create
+  stored client version 0.0.0.0 -> package stuck InProgress), D-23 (ISO `retryAfter`, gzip blobs), C-46 (untyped
+  variable -> NULL rules). The `deploy.py` manifest wrapper itself has only its offline self-test.
+- The app shell: normally a Studio "Download a copy" with the data sources and flows added (P-08). For TESTS it can be
+  built without Studio: `canvasdoc.new_shell(<any Studio-saved .msapp>)` takes Microsoft's control templates from it,
+  `add_sharepoint_source` / `add_flow_source` add the bindings (list id, connection, `listWadl`), `put_src` the YAML;
+  the service compiled such a document to a Ready runtime package and the app ran in the browser. Every control type
+  used needs its template in the source document(s) (C-19). The DELIVERY package is still stamped into the target
+  tenant's own Studio download.
 - Package import cannot carry connections or edited export manifests (D-07). Direct `/apps` writes are dead (D-06).

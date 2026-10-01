@@ -5,6 +5,9 @@ description: Verify canvas apps and cloud flows in three tiers -- offline checke
 
 # Verify
 
+> Paths here are relative to the playbook root: the repo root when this repo is your project (template), or
+> `${CLAUDE_PLUGIN_ROOT}` when it is installed as a Claude Code plugin -- e.g. `python ${CLAUDE_PLUGIN_ROOT}/tools/flowcheck.py`.
+
 ## The reporting rule
 
 Every deliverable states, per artifact, the highest tier it passed:
