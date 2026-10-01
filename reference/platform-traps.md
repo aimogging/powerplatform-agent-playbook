@@ -207,6 +207,14 @@ Proof: OBSERVED.
 
 **C-45 A Studio Refresh of a flow autosaves a new unpublished version.** Proof: MEASURED (HAR).
 
+**C-46 An untyped object in a global variable compiled to NULL rules in a service-compiled YAML document.** Symptom:
+the launch gate reports `App.OnStart (handler)` and `<button>.OnSelect (async)` as NULL rules; the button does nothing,
+no error anywhere; the variable name never appears in the compiled JS. Cause: `Set(varResult, ParseJSON(...))` in both
+rules of an app whose YAML was compiled by the service without a Studio save. Fix: keep the flow's answer as TEXT
+(`Set(varResultJson, <flow>.Run(...).result_json)`) and parse where it is used (`With({r: ParseJSON(varResultJson)},
+...)`). Proof: MEASURED on a validation tenant as an A/B on one app (only this change: 2 NULL rules -> 0). Studio-saved
+apps using the same pattern ran fine, so treat it as a headless/YAML-compile trap -- and the text form works everywhere.
+
 ---
 
 ## F -- cloud flows
@@ -411,13 +419,16 @@ disappears). Do not diff a downloaded copy against your build and conclude a sta
 ## D -- dev-tenant APIs and headless deploy
 
 **D-01 One refresh token, many audiences (FOCI).** The SharePoint Online Management Shell public client's refresh
-token redeems for SharePoint, Flow, Graph and apihub. Refresh tokens ROTATE -- persist every new one (a second stale
-cache copy later fails `AuthenticationFailed`). Proof: MEASURED.
+token redeems for SharePoint, Flow and Graph. Refresh tokens ROTATE -- always persist the newest (a stale cache copy
+once failed `AuthenticationFailed`; in another measurement the previous token still worked after a redemption, so do
+not rely on either behaviour). Proof: MEASURED.
 
 **D-02 Not every first-party client is preauthorized for every resource** (`AADSTS65002 ... must be configured via
-preauthorization` -- a hard wall, not a consent prompt). The FOCI client above cannot mint Power Apps or Dataverse
-tokens; the Power Automate Desktop client is apihub-only; the Power Platform CLI client works for Dataverse. Proof:
-MEASURED. See reference/dev-tenant-auth.md.
+preauthorization` -- a hard wall, not a consent prompt). Measured matrix on a commercial validation tenant: the FOCI
+client above gets SharePoint/Flow/Graph but 65002 for apihub, Power Apps and Dataverse; the Power Platform CLI client
+gets Power Apps and Dataverse, and an apihub token that the connector runtime refuses (403 `missing connection ACL` --
+it carries `user_impersonation` only); the Power Automate Desktop client gets apihub with `Runtime.All`, which the
+connector runtime (`$metadata.json` schemas, D-11) needs. Proof: MEASURED. See reference/dev-tenant-auth.md.
 
 **D-03 Token caches committed through a stale ignore path.** After a folder move the old `.gitignore` pattern no longer
 matched and live refresh tokens were tracked for two weeks. Keep caches OUTSIDE the repo and use path-independent
@@ -431,7 +442,10 @@ Test through an Http-trigger TWIN (same definition, connections Embedded); custo
 MEASURED.
 
 **D-05 The connections API answers 404 to a Flow-audience token** for a plain maker; harvest connection references from
-live flows instead (they also give the exact field shape the tenant accepts). Proof: MEASURED.
+live flows instead (they also give the exact field shape the tenant accepts). A **Power Apps**-audience token lists
+them (`GET https://api.powerapps.com/providers/Microsoft.PowerApps/connections?api-version=2016-11-01&$filter=environment
+eq '<env>'`), which is how `doctor` checks that a connection exists. Creating one still needs the maker portal. Proof:
+MEASURED.
 
 **D-06 Canvas deploy route = BAP package import** (generateResourceStorage -> upload -> listImportParameters -> use ITS
 re-staged packageLink -> importPackage). Direct POST/PATCH of `/apps` answers 500 for every body; the Power Platform API
@@ -444,7 +458,9 @@ resources (e.g. adding connections) hangs listImportParameters or 400s on dangli
 connections in the package. Proof: MEASURED by bisection.
 
 **D-08 Import-as-Update lands as a DRAFT; publish with api-version 2017-05-01** (2016-11-01 refused). A CREATE import is
-a single version (published == draft). Proof: MEASURED.
+a single version (published == draft), so a create has no draft to write references into: publish, then write them
+with the metadata PATCH and verify them on the live definition (measured on a create: references verified, runtime
+package Ready, the app's flow call ran). Proof: MEASURED.
 
 **D-09 The importer's draft has NO connection references, and PATCH cannot reach a draft.** Studio opens the draft,
 shows everything "Not connected" and its first save wipes the references. Write the draft as Studio does:
@@ -466,7 +482,8 @@ what Studio stores; the display-name mapping follows Studio's collision rule (`n
 Studio-saved documents reproduced).
 
 **D-12 Embedded flow signatures can be refreshed headless**: `POST .../flows/<id>/listWadl` returns what Studio embeds;
-pin `siena:serviceId` to the data-source name. Proof: MEASURED (byte-identical to the Studio HAR).
+pin `siena:serviceId` to the data-source name. A FOCI Flow-audience token is enough. Proof: MEASURED (byte-identical
+to the Studio HAR).
 
 **D-13 Only the player's launch call shows a broken runtime package.** `POST
 https://<env host>/powerapps/apps/<id>/launch?api-version=2` -> `packageStatus`, error text, and a SAS to the compiled
@@ -501,6 +518,22 @@ Dataverse approval-response table was 403 for a maker). List pending: `approvalV
 **D-21 Some agent sandboxes block commands whose text contains destructive-looking REST paths** (a DELETE to
 `/items(...)` read as "remove on a system path"). Put such calls in a script file and run the file. Proof: OBSERVED
 (agent-environment specific).
+
+**D-22 A CREATE by package import can store client version 0.0.0.0, and the runtime package then never builds.**
+Symptom: the new app says Published, the launch call answers `packageStatus=InProgress` for 10+ minutes with no
+error. Cause: the package's app definition template carried no `createdByClientVersion`/`minClientVersion`; the
+service stored zeros (the C-10 family). Fix: put four-part versions in the template (`devtenant.powerapps` does);
+an app already stuck recovers with one Update import whose draft is written with four-part versions -- Ready within a
+minute. Proof: MEASURED.
+
+**D-23 The launch/runtime-package plumbing speaks two dialects.** `retryAfter` in the launch answer is an ISO-8601
+duration (`PT10S`), not seconds; the runtime package blobs (`manifest.json`, the compiled JS) come back gzip-compressed
+even when the client never asked -- decode by the gzip magic bytes, not by headers. Proof: MEASURED.
+
+**D-24 BAP importPackage of a hand-built FLOW package can hang.** One attempt stayed `202 Running` for more than 15
+minutes although `listImportParameters` accepted the same package in 5 seconds. For dev-tenant tests deploy flows
+through the Flow API (update in place); the legacy package remains what a person imports by hand, where the portal
+importer is proven (P-01). Check afterwards for a late-created copy and delete it. Proof: OBSERVED (once).
 
 ---
 

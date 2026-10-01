@@ -69,7 +69,7 @@ Examples:
 "Create_Ticket": { "type": "OpenApiConnection", "runAfter": {},
   "inputs": { "host": { "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
                         "connectionName": "shared_sharepointonline", "operationId": "PostItem" },
-    "parameters": { "dataset": "https://contoso.sharepoint.com/sites/HelpDesk", "table": "HelpDeskTickets",
+    "parameters": { "dataset": "https://contoso.sharepoint.com/sites/HelpDesk", "table": "ContosoHelpDeskTickets",
                     "item/Title": "@outputs('Compose_Subject')", "item/Status/Value": "New" },
     "retryPolicy": { "type": "exponential", "count": 3, "interval": "PT10S", "minimumInterval": "PT5S", "maximumInterval": "PT1M" } } }
 ```
@@ -79,7 +79,7 @@ Examples:
   "inputs": { "host": { "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
                         "connectionName": "shared_sharepointonline", "operationId": "HttpRequest" },
     "parameters": { "dataset": "https://contoso.sharepoint.com/sites/HelpDesk", "parameters/method": "GET",
-                    "parameters/uri": "_api/web/lists/GetByTitle('HelpDeskTickets')/fields?$select=InternalName,TypeAsString",
+                    "parameters/uri": "_api/web/lists/GetByTitle('ContosoHelpDeskTickets')/fields?$select=InternalName,TypeAsString",
                     "parameters/headers": { "Accept": "application/json;odata=nometadata" } } } }
 ```
 
